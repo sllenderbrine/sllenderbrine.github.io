@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    "target": "ES2022",
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+
+    "lib": ["DOM", "ES2022"],
+    "strict": true,
+
+    "sourceMap": true,
+
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+
+    "skipLibCheck": true
+  },
+  "include": ["src"],
+}

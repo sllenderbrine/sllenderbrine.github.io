@@ -1,0 +1,17 @@
+{
+  "name": "sllenderbrine.github.io",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/electron-main.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "type": "module",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "typescript": "^5.9.3"
+  }
+}
