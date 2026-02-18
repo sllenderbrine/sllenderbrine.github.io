@@ -9,7 +9,7 @@ function render() {
     for(let y=0;y<canvas.height;y++) {
         for(let x=0;x<canvas.width;x++) {
             let i = (y*canvas.width+x)*4;
-            let c = new Color(1,0,0);
+            let c = new Color(255,0,0);
             data.data[i] = c.r;
             data.data[i+1] = c.g;
             data.data[i+2] = c.b;
