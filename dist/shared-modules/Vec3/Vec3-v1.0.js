@@ -222,6 +222,7 @@ export default class Vec3 {
     }
     rescaleSelf(length) {
         this.normalizeSelf().multiplySelf(length);
+        return this;
     }
     rotateXSelf(angle) {
         const s = Math.sin(angle);
