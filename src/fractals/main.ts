@@ -4,7 +4,7 @@ import { MandelbrotShader, MandelbrotShading } from "./fractals.js";
 
 const canvas = new FullscreenCanvas().getHTMLCanvasElement();
 const gl = canvas.getContext('webgl2')!;
-let shader = new MandelbrotShader(gl, MandelbrotShading.SOFT);
+let shader = new MandelbrotShader(gl, MandelbrotShading.PURPLE, true);
 let camera = new Vec3(-0.75,0,0.4);
 
 FullscreenCanvas.getFullscreenCanvas(canvas)?.resized.connect(() => {

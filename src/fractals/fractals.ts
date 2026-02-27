@@ -2,7 +2,7 @@ import * as WebGL2 from "../shared-modules/WebGL2/WebGL2-v1.0.js";
 
 export const MandelbrotShading: any = {};
 MandelbrotShading.SOFT_FAST = `@
-    float hue = mandelbrotSmooth(mi, mz)/100.;
+    float hue = it/100.;
     outColor = vec4(hsv2rgb(vec3(hue-0.02,0.3+0.6*cos(hue*6.0),0.9)),1);
 `
 MandelbrotShading.SOFT = MandelbrotShading.SOFT_FAST + `
@@ -13,8 +13,23 @@ MandelbrotShading.SOFT = MandelbrotShading.SOFT_FAST + `
     }
     }
 `;
-MandelbrotShading.DEFAULT = "#vec4(hsv2rgb(vec3(float(mi)/100.,1,1)),1);";
-MandelbrotShading.DEFAULT_SMOOTH = "#vec4(hsv2rgb(vec3(mandelbrotSmooth(mi, mz)/100.,1,1)),1);";
+MandelbrotShading.DEFAULT = "#vec4(hsv2rgb(vec3(it/100.,1,1)),1);";
+MandelbrotShading.GRAYSCALE = `@
+    float hue = it/100.;
+    outColor = vec4(hsv2rgb(vec3(0,0,0.5 + 0.2 * cos(hue*30.0))),1);
+`
+MandelbrotShading.PURPLE = `@
+    float hue = cos(it/100.*24.0)*0.5+0.5;
+    vec3 rgb = vec3(0,0,0);
+    if(hue < 0.33) {
+        rgb = mix(vec3(0.07,0.07,0.12), vec3(0.3,0.1,0.5), (hue-0.0)/0.33);
+    } else if(hue < 0.66) {
+        rgb = mix(vec3(0.3,0.1,0.5), vec3(0.9,0.1,0.3), (hue-0.33)/0.33);
+    } else {
+        rgb = mix(vec3(0.9,0.1,0.3), vec3(0.9,0.4,0.3), (hue-0.66)/0.33);
+    }
+    outColor = vec4(rgb,1);
+`
 
 export class MandelbrotShader {
     vertexShader: WebGL2.Shader;
@@ -24,7 +39,7 @@ export class MandelbrotShader {
     uCamera: WebGL2.Uniform;
     vao: WebGL2.VertexArray;
     positionBuffer: WebGL2.Buffer;
-    constructor (public gl: WebGL2RenderingContext, shadeFunc: string) {
+    constructor (public gl: WebGL2RenderingContext, shadeFunc: string, smooth = false) {
         let sft = shadeFunc.charAt(0);
         shadeFunc = shadeFunc.substring(1);
         if(sft == "@" || sft == "#")
@@ -76,6 +91,7 @@ export class MandelbrotShader {
                 int mi = 0;
                 vec2 mz = vec2(0, 0);
                 mandelbrot(cf, ci, mi, mz);
+                float it = ${smooth?"mandelbrotSmooth(mi,mz);":"float(mi);"}
                 ${shadeFunc}
             }
         `;
