@@ -1,2 +1,2 @@
 cd /d "%~dp0"
-npm run watch
+npm run ts-watch
