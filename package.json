@@ -4,8 +4,6 @@
   "description": "",
   "main": "dist/electron-main.js",
   "scripts": {
-    "webgames-build": "node scripts/webgames-build.mjs",
-    "webgames-watch": "node scripts/webgames-build.mjs --watch",
     "ts-build": "tsc",
     "ts-watch": "tsc --watch"
   },

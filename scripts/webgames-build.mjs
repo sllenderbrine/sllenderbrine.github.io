@@ -1,5 +1,8 @@
 import esbuild from "esbuild";
 
+// node scripts/webgames-build.mjs
+// node scripts/webgames-build.mjs --watch
+
 const watch = process.argv.includes("--watch");
 
 const ctx = await esbuild.context({
