@@ -2010,3 +2010,77 @@ export class FullscreenResize {
         this.connections.disconnectAll();
     }
 }
+
+
+export class Color {
+    // RGB 0-255
+    r: number;
+    g: number;
+    b: number;
+    // Alpha 0-100
+    a: number;
+    constructor(r: number, g: number, b: number, a: number = 100) {
+        this.r = EMath.clamp(r, 0, 255);
+        this.g = EMath.clamp(g, 0, 255);
+        this.b = EMath.clamp(b, 0, 255);
+        this.a = EMath.clamp(a, 0, 100);
+    }
+    static fromHSV(h: number, s: number, v: number, a: number = 100) {
+        h = EMath.pmod(h, 360);
+        s = EMath.clamp(s, 0, 100);
+        v = EMath.clamp(v, 0 ,100);
+        const c = v / 100 * s / 100;
+        const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+        const m = v / 100 - c;
+        let rp=0, gp=0, bp=0;
+        switch(Math.floor(h / 60)) {
+            case 0: rp=c; gp=x; break;
+            case 1: rp=x; gp=c; break;
+            case 2: gp=c; bp=x; break;
+            case 3: gp=x; bp=c; break;
+            case 4: rp=x; bp=c; break;
+            default: rp=c; bp=x; break;
+        }
+        const r = Math.round((rp + m) * 255);
+        const g = Math.round((gp + m) * 255);
+        const b = Math.round((bp + m) * 255);
+        return new Color(r, g, b, a);
+    }
+    toHSV() {
+        const max = Math.max(this.r, this.g, this.b);
+        const min = Math.min(this.r, this.g, this.b);
+        const delta = max - min;
+        let h = 0;
+        if(delta !== 0) {
+            if(max === this.r) h = 60 * (((this.g - this.b) / delta + 6) % 6);
+            else if(max === this.g) h = 60 * ((this.b - this.r) / delta + 2);
+            else h = 60 * ((this.r - this.g) / delta + 4);
+        }
+        if(h < 0) h += 360;
+        const s = max === 0 ? 0 : delta/max*100;
+        const v = max/255*100;
+        return { h, s, v, a:this.a };
+    }
+    lerp(other: Color, t: number): Color {
+        return new Color(
+            this.r + (other.r - this.r) * t,
+            this.g + (other.g - this.g) * t,
+            this.b + (other.b - this.b) * t,
+            this.a + (other.a - this.a) * t,
+        )
+    }
+    getIsForegroundWhite(threshold = 0.42) {
+        let {r, g, b} = this;
+        r = (r < 0.03928) ? (r / 12.92) : (((r + 0.055) / 1.055) ^ 2.4)
+        g = (g < 0.03928) ? (g / 12.92) : (((g + 0.055) / 1.055) ^ 2.4)
+        b = (b < 0.03928) ? (b / 12.92) : (((b + 0.055) / 1.055) ^ 2.4)
+        let l = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        return l < threshold;
+    }
+    toString(): string {
+        return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a/100})`;
+    }
+    toArray(): [r: number, g: number, b:number, a:number] {
+        return [this.r, this.g, this.b, this.a];
+    }
+}
