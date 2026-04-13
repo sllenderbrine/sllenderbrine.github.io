@@ -2190,8 +2190,8 @@ export class Physics2DRect {
     velocity = Vec2.zero();
     type = "rect";
     constructor() {}
-    setRotation() {
-        this.rotation = 0;
+    setRotation(a: number) {
+        this.rotation = a;
         this.up = new Vec2(0, 1).rotate(this.rotation);
         this.right = new Vec2(1, 0).rotate(this.rotation);
     }
