@@ -2167,3 +2167,148 @@ export abstract class Mat3 {
         return out;
     }
 }
+
+export type Physics2DRectState = Physics2DRect | {size:Vec2, position:Vec2, up:Vec2, right:Vec2};
+export type Physics2DBallState = Physics2DBall | {radius:number, position:Vec2};
+
+export class Physics2DBall {
+    radius = 10;
+    position = Vec2.zero();
+    velocity = Vec2.zero();
+    anchored = false;
+    type = "ball";
+    constructor() {}
+}
+
+export class Physics2DRect {
+    size = new Vec2(100, 10);
+    position = Vec2.zero();
+    rotation = 0;
+    up = new Vec2(0, 1).rotate(this.rotation);
+    right = new Vec2(1, 0).rotate(this.rotation);
+    anchored = true;
+    velocity = Vec2.zero();
+    type = "rect";
+    constructor() {}
+    setRotation() {
+        this.rotation = 0;
+        this.up = new Vec2(0, 1).rotate(this.rotation);
+        this.right = new Vec2(1, 0).rotate(this.rotation);
+    }
+}
+
+export class Physics2D {
+    constructor() {}
+    objects: (Physics2DRect | Physics2DBall)[] = [];
+    update(dt: number) {
+        for(let obj of this.objects) {
+            if(obj.type == "ball") {
+                this.updateBall(obj as Physics2DBall, dt);
+            } else {
+
+            }
+        }
+    }
+    updateBall(ball: Physics2DBall, dt: number) {
+        if(ball.anchored)
+            return;
+        ball.velocity.y -= 500 * dt;
+        ball.position.addScaledSelf(ball.velocity, dt);
+        for(let obj of this.objects) {
+            if(obj.type == "ball") {
+                if(obj == ball)
+                    continue;
+                let res = this.getBallCollision(ball, obj as Physics2DBall);
+                if(res) {
+                    let v1 = ball.velocity;
+                    let v2 = obj.velocity;
+                    let vn1 = res.normal.dot(v1);
+                    let vn2 = res.normal.dot(v2);
+                    ball.velocity = v1.addScaled(res.normal, vn2 - vn1);
+                    obj.velocity = v2.addScaled(res.normal, vn1 - vn2);
+                    ball.position.addScaledSelf(res.normal, res.overlap/2);
+                    obj.position.addScaledSelf(res.normal, -res.overlap/2);
+                    break;
+                }
+            } else {
+                let res = this.getBallRectCollision(ball, obj as Physics2DRect);
+                if(res) {
+                    ball.position = res.position.addScaled(res.normal, ball.radius + 1e-6);
+                    ball.velocity.addScaledSelf(res.normal, -res.normal.dot(ball.velocity)*2);
+                    break;
+                }
+            }
+        }
+    }
+    createRect(): Physics2DRect {
+        let rect = new Physics2DRect();
+        this.objects.push(rect);
+        return rect;
+    }
+    createBall(): Physics2DBall {
+        let ball = new Physics2DBall();
+        this.objects.push(ball);
+        return ball;
+    }
+    getPointRectCollision(p: Vec2, rect: Physics2DRectState) {
+        return (
+            p.x >= rect.position.x - rect.size.x/2
+            && p.y >= rect.position.y - rect.size.y/2
+            && p.x <= rect.position.x + rect.size.x/2
+            && p.y <= rect.position.y + rect.size.y/2
+        );
+    }
+    getBallCollision(ball1: Physics2DBallState, ball2: Physics2DBallState) {
+        let dist = ball1.position.dist(ball2.position)
+        if(dist > ball1.radius + ball2.radius) return null;
+        return {
+            position: ball1.position.addScaled(ball1.position.look(ball2.position), ball1.radius),
+            normal: ball2.position.look(ball1.position),
+            overlap: ball1.radius + ball2.radius - dist,
+        };
+    }
+    getBallRectCollision(ball: Physics2DBallState, rect: Physics2DRectState) {
+        if(this.getPointRectCollision(ball.position, rect)) {
+            let d1 = Math.abs(ball.position.sub(rect.position.addScaled(rect.up, rect.size.y/2)).dot(rect.up));
+            let d2 = Math.abs(ball.position.sub(rect.position.addScaled(rect.up, -rect.size.y/2)).dot(rect.up));
+            let d3 = Math.abs(ball.position.sub(rect.position.addScaled(rect.right, rect.size.x/2)).dot(rect.right));
+            let d4 = Math.abs(ball.position.sub(rect.position.addScaled(rect.right, -rect.size.x/2)).dot(rect.right));
+            let cd = Math.min(d1, d2, d3, d4);
+            if(EMath.isClose(cd, d1)) {
+                return {
+                    position: rect.position.addScaled(rect.right, ball.position.sub(rect.position).dot(rect.right)).addScaled(rect.up, rect.size.y/2),
+                    normal: rect.up,
+                };
+            } else if(EMath.isClose(cd, d2)) {
+                return {
+                    position: rect.position.addScaled(rect.right, ball.position.sub(rect.position).dot(rect.right)).addScaled(rect.up, -rect.size.y/2),
+                    normal: rect.up.neg(),
+                };
+            } else if(EMath.isClose(cd, d3)) {
+                return {
+                    position: rect.position.addScaled(rect.up, ball.position.sub(rect.position).dot(rect.up)).addScaled(rect.right, rect.size.x/2),
+                    normal: rect.right,
+                };
+            } else {
+                return {
+                    position: rect.position.addScaled(rect.up, ball.position.sub(rect.position).dot(rect.up)).addScaled(rect.right, -rect.size.x/2),
+                    normal: rect.right.neg(),
+                };
+            }
+        } else {
+            let dotX = ball.position.sub(rect.position).dot(rect.right);
+            let dotY = ball.position.sub(rect.position).dot(rect.up);
+            dotX = EMath.clamp(dotX, -rect.size.x/2, rect.size.x/2);
+            dotY = EMath.clamp(dotY, -rect.size.y/2, rect.size.y/2);
+            let p = rect.position.addScaled(rect.right, dotX).addScaled(rect.up, dotY);
+            let dist = p.dist(ball.position);
+            if(dist < ball.radius)
+                return {
+                    position: p,
+                    normal: p.look(ball.position),
+                };
+            else
+                return null;
+        }
+    }
+}
