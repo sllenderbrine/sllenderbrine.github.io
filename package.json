@@ -12,7 +12,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "spacetimedb": "^2.0.2",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
