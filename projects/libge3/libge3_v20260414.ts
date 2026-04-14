@@ -2108,23 +2108,168 @@ export class TextureAtlas {
 ///////////////////
 //  COLOR CLASS  //
 ///////////////////
+/**
+ * Represents a color and a transparency value. Implements lazy conversion between RGB and HSV space.
+*/
 export class Color {
-    // RGB 0-255
-    r: number;
-    g: number;
-    b: number;
-    // Alpha 0-100
-    a: number;
-    constructor(r: number, g: number, b: number, a: number = 100) {
-        this.r = EMath.clamp(r, 0, 255);
-        this.g = EMath.clamp(g, 0, 255);
-        this.b = EMath.clamp(b, 0, 255);
-        this.a = EMath.clamp(a, 0, 100);
+    constructor();
+    constructor(r: number, g: number, b: number);
+    constructor(r: number, g: number, b: number, a: number);
+    constructor(color: string | Color);
+    constructor(argA?: number | string | Color, argB?: number, argC?: number, argD?: number) {
+        if(typeof argA === "string") {
+            let comp = argA.split("(");
+            if(comp.length == 0)
+                throw new Error("Invalid color constructor: Empty string");
+            if(comp.length < 2)
+                throw new Error("Invalid color constructor: " + comp[0]);
+            let cstruct = comp[0];
+            let cparam = comp[1]!.replace(")", "");
+            if(cstruct === "rgb" || cstruct === "rgba") {
+                let cargs = cparam.split(",");
+                if(cargs.length < 3 || cargs.length > 4)
+                    throw new Error("Invalid color argument count: " + cargs.length);
+                let r = parseInt(cargs[0]!);
+                let g = parseInt(cargs[1]!);
+                let b = parseInt(cargs[2]!);
+                let a = cargs[3] ? parseFloat(cargs[3]!) : 1;
+                if(isNaN(r)) throw new Error("Invalid color value: " + cargs[0]);
+                if(isNaN(g)) throw new Error("Invalid color value: " + cargs[1]);
+                if(isNaN(b)) throw new Error("Invalid color value: " + cargs[2]);
+                if(isNaN(a)) throw new Error("Invalid color value: " + cargs[3]);
+                r = EMath.clamp(Math.round(r), 0, 255);
+                g = EMath.clamp(Math.round(g), 0, 255);
+                b = EMath.clamp(Math.round(b), 0, 255);
+                a = EMath.clamp(a, 0, 1);
+                this._r = r;
+                this._g = g;
+                this._b = b;
+                this.a = a;
+                this._hasRgb = true;
+                this._hasHsv = false;
+            } else if(cstruct === "hsv" || cstruct === "hsva") {
+                let cargs = cparam.split(",");
+                if(cargs.length < 3 || cargs.length > 4)
+                    throw new Error("Invalid color argument count: " + cargs.length);
+                let h: number;
+                if(cargs[0]!.includes("rad")) {
+                    h = parseFloat(cargs[0]!) * 180 / Math.PI;
+                } else {
+                    h = parseInt(cargs[0]!);
+                }
+                let s = parseInt(cargs[1]!);
+                let v = parseInt(cargs[2]!);
+                let a = cargs[3] ? parseInt(cargs[3]!) : 1;
+                if(isNaN(h)) throw new Error("Invalid color value: " + cargs[0]);
+                if(isNaN(s)) throw new Error("Invalid color value: " + cargs[1]);
+                if(isNaN(v)) throw new Error("Invalid color value: " + cargs[2]);
+                if(isNaN(a)) throw new Error("Invalid color value: " + cargs[3]);
+                h = EMath.pmod(h, 360);
+                s = EMath.clamp(s, 0, 100);
+                v = EMath.clamp(v, 0, 100);
+                a = EMath.clamp(a, 0, 1);
+                this._hue = h;
+                this._sat = s;
+                this._val = v;
+                this.a = a;
+                this._hasHsv = true;
+                this._hasRgb = false;
+            } else {
+                throw new Error("Invalid color constructor: " + cstruct);
+            }
+        } else if(typeof argA === "number") {
+            if (argB === undefined || argC === undefined) {
+                throw new Error("Invalid color constructor: Not enough arguments");
+            }
+            this._r = EMath.clamp(Math.round(argA), 0, 255);
+            this._g = EMath.clamp(Math.round(argB!), 0, 255);
+            this._b = EMath.clamp(Math.round(argC!), 0, 255);
+            this.a = EMath.clamp(argD ?? 1, 0, 1);
+            this._hasRgb = true;
+            this._hasHsv = false;
+        } else if(argA === undefined) {
+            this._r = 0;
+            this._g = 0;
+            this._b = 0;
+            this.a = 1;
+            this._hasRgb = true;
+            this._hasHsv = false;
+        } else {
+            this._r = argA!.r;
+            this._g = argA!.g;
+            this._b = argA!.b;
+            this.a = argA!.a;
+            this._hasRgb = true;
+            this._hasHsv = false;
+        }
     }
-    static fromHSV(h: number, s: number, v: number, a: number = 100) {
-        h = EMath.pmod(h, 360);
-        s = EMath.clamp(s, 0, 100);
-        v = EMath.clamp(v, 0 ,100);
+
+    clone(): Color {
+        return new Color(this);
+    }
+
+    _hasRgb = false;
+    _hasHsv = false;
+
+    _r = 0;
+    /**
+     * (int) red value of the color, 0 - 255.
+    */
+    set r(value: number) {
+        value = EMath.clamp(Math.round(value), 0, 255);
+        if(value == this._r)
+            return;
+        if(!this._hasRgb)
+            this._addRgb();
+        this._r = value;
+        this._hasHsv = false;
+    }
+    get r() {
+        if(!this._hasRgb)
+            this._addRgb();
+        return this._r;
+    }
+
+    _g = 0;
+    /**
+     * (int) green value of the color, 0 - 255.
+    */
+    set g(value: number) {
+        value = EMath.clamp(Math.round(value), 0, 255);
+        if(value == this._g)
+            return;
+        if(!this._hasRgb)
+            this._addRgb();
+        this._g = value;
+        this._hasHsv = false;
+    }
+    get g() {
+        if(!this._hasRgb)
+            this._addRgb();
+        return this._g;
+    }
+    
+    _b = 0;
+    /**
+     * (int) blue value of the color, 0 - 255.
+    */
+    set b(value: number) {
+        value = EMath.clamp(Math.round(value), 0, 255);
+        if(value == this._b)
+            return;
+        if(!this._hasRgb)
+            this._addRgb();
+        this._b = value;
+        this._hasHsv = false;
+    }
+    get b() {
+        if(!this._hasRgb)
+            this._addRgb();
+        return this._b;
+    }
+
+    _addRgb() {
+        const {_hue:h, _sat:s, _val:v} = this;
         const c = v / 100 * s / 100;
         const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
         const m = v / 100 - c;
@@ -2137,12 +2282,70 @@ export class Color {
             case 4: rp=x; bp=c; break;
             default: rp=c; bp=x; break;
         }
-        const r = Math.round((rp + m) * 255);
-        const g = Math.round((gp + m) * 255);
-        const b = Math.round((bp + m) * 255);
-        return new Color(r, g, b, a);
+        this._r = Math.round((rp + m) * 255);
+        this._g = Math.round((gp + m) * 255);
+        this._b = Math.round((bp + m) * 255);
+        this._hasRgb = true;
     }
-    toHSV() {
+
+    _hue = 0;
+    /**
+     * (decimal) hue of the color in degrees, 0 - 360.
+    */
+    set hue(value: number) {
+        value = EMath.pmod(value, 360);
+        if(value == this._hue)
+            return;
+        if(!this._hasHsv)
+            this._addHsv();
+        this._hue = value;
+        this._hasRgb = false;
+    }
+    get hue() {
+        if(!this._hasHsv)
+            this._addHsv();
+        return this._hue;
+    }
+
+    _sat = 0;
+    /**
+     * (decimal) saturation of the color, 0 - 100.
+    */
+    set sat(value: number) {
+        value = EMath.clamp(value, 0, 100);
+        if(value == this._sat)
+            return;
+        if(!this._hasHsv)
+            this._addHsv();
+        this._sat = value;
+        this._hasRgb = false;
+    }
+    get sat() {
+        if(!this._hasHsv)
+            this._addHsv();
+        return this._sat;
+    }
+
+    _val = 0;
+    /**
+     * (decimal) value/brightness of the color, 0 - 100.
+    */
+    set val(value: number) {
+        value = EMath.clamp(value, 0, 100);
+        if(value == this._val)
+            return;
+        if(!this._hasHsv)
+            this._addHsv();
+        this._val = value;
+        this._hasRgb = false;
+    }
+    get val() {
+        if(!this._hasHsv)
+            this._addHsv();
+        return this._val;
+    }
+
+    _addHsv() {
         const max = Math.max(this.r, this.g, this.b);
         const min = Math.min(this.r, this.g, this.b);
         const delta = max - min;
@@ -2155,29 +2358,86 @@ export class Color {
         if(h < 0) h += 360;
         const s = max === 0 ? 0 : delta/max*100;
         const v = max/255*100;
-        return { h, s, v, a:this.a };
+        this._hue = h;
+        this._sat = s;
+        this._val = v;
+        this._hasHsv = true;
     }
-    lerp(other: Color, t: number): Color {
-        return new Color(
-            this.r + (other.r - this.r) * t,
-            this.g + (other.g - this.g) * t,
-            this.b + (other.b - this.b) * t,
-            this.a + (other.a - this.a) * t,
-        )
+
+    /**
+     * (decimal) alpha/opacity of the color, 0 - 1.
+    */
+    a = 1;
+
+    strictEquals(other: Color) {
+        return (
+            this.r == other.r
+            && this.g == other.g
+            && this.b == other.b
+            && this.a == other.a
+        );
+    }
+    isClose(other: Color, e = 1e-6) {
+        return (
+            EMath.isClose(this.r, other.r, e)
+            && EMath.isClose(this.g, other.g, e)
+            && EMath.isClose(this.b, other.b, e)
+            && EMath.isClose(this.a, other.a, e)
+        );
+    }
+    strictEqualsRgb(other: Color) {
+        return (
+            this.r == other.r
+            && this.g == other.g
+            && this.b == other.b
+        );
+    }
+    isCloseRgb(other: Color, e = 1e-6) {
+        return (
+            EMath.isClose(this.r, other.r, e)
+            && EMath.isClose(this.g, other.g, e)
+            && EMath.isClose(this.b, other.b, e)
+        );
+    }
+    lerpRgba(other: Color, t: number): Color {
+        return this.clone().lerpRgbaSelf(other, t);
+    }
+    lerpRgbaSelf(other: Color, t: number): this {
+        this.r = EMath.lerp(this.r, other.r, t);
+        this.g = EMath.lerp(this.g, other.g, t);
+        this.b = EMath.lerp(this.b, other.b, t);
+        this.a = EMath.lerp(this.a, other.a, t);
+        return this;
+    }
+    lerpHsva(other: Color, t: number): Color {
+        return this.clone().lerpHsvaSelf(other, t);
+    }
+    lerpHsvaSelf(other: Color, t: number): this {
+        this.hue = EMath.lerp(this.hue, other.hue, t);
+        this.sat = EMath.lerp(this.sat, other.sat, t);
+        this.val = EMath.lerp(this.val, other.val, t);
+        this.a = EMath.lerp(this.a, other.a, t);
+        return this;
     }
     getIsForegroundWhite(threshold = 0.42) {
         let {r, g, b} = this;
-        r = (r < 0.03928) ? (r / 12.92) : (((r + 0.055) / 1.055) ^ 2.4)
-        g = (g < 0.03928) ? (g / 12.92) : (((g + 0.055) / 1.055) ^ 2.4)
-        b = (b < 0.03928) ? (b / 12.92) : (((b + 0.055) / 1.055) ^ 2.4)
+        r /= 255;
+        g /= 255;
+        b /= 255;
+        r = (r < 0.03928) ? (r / 12.92) : (((r + 0.055) / 1.055) ** 2.4)
+        g = (g < 0.03928) ? (g / 12.92) : (((g + 0.055) / 1.055) ** 2.4)
+        b = (b < 0.03928) ? (b / 12.92) : (((b + 0.055) / 1.055) ** 2.4)
         let l = 0.2126 * r + 0.7152 * g + 0.0722 * b
         return l < threshold;
     }
     toString(): string {
-        return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a/100})`;
+        return `rgba(${this.r}, ${this.g}, ${this.b}, ${this.a})`;
     }
-    toArray(): [r: number, g: number, b:number, a:number] {
+    toRgbaArray(): [r: number, g: number, b: number, a: number] {
         return [this.r, this.g, this.b, this.a];
+    }
+    toHsvaArray(): [h: number, s: number, v: number, a: number] {
+        return [this.hue, this.sat, this.val, this.a];
     }
 }
 
