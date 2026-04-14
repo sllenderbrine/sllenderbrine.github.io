@@ -1459,27 +1459,36 @@ export abstract class Physics2D {
             let d2 = Math.abs(point.sub(center.addScaled(up, -sizeY)).dot(up));
             let d3 = Math.abs(point.sub(center.addScaled(right, sizeX)).dot(right));
             let d4 = Math.abs(point.sub(center.addScaled(right, -sizeX)).dot(right));
-            let cd = Math.min(d1, d2, d3, d4);
+            let minIndex = 0;
+            let minDist = d1;
+            if(d2 < minDist) { minDist = d2; minIndex = 1; }
+            if(d3 < minDist) { minDist = d3; minIndex = 2; }
+            if(d4 < minDist) { minDist = d4; minIndex = 3; }
             let edge: Vec2;
             let normal: Vec2;
-            if(EMath.isClose(cd, d1)) {
-                edge = center.addScaled(right, dx).addScaled(up, sizeY);
-                normal = up;
-            } else if(EMath.isClose(cd, d2)) {
-                edge = center.addScaled(right, dx).addScaled(up, -sizeY);
-                normal = up.neg();
-            } else if(EMath.isClose(cd, d3)) {
-                edge = center.addScaled(up, dy).addScaled(right, sizeX);
-                normal = right;
-            } else {
-                edge = center.addScaled(up, dy).addScaled(right, -sizeX);
-                normal = right.neg();
+            switch(minIndex) {
+                case 0:
+                    edge = center.addScaled(right, dx).addScaled(up, sizeY);
+                    normal = up;
+                    break;
+                case 1:
+                    edge = center.addScaled(right, dx).addScaled(up, -sizeY);
+                    normal = up.neg();
+                    break;
+                case 2:
+                    edge = center.addScaled(up, dy).addScaled(right, sizeX);
+                    normal = right;
+                    break;
+                case 3:
+                    edge = center.addScaled(up, dy).addScaled(right, -sizeX);
+                    normal = right.neg();
+                    break;
             }
             return {
                 inside: true,
-                collision: edge,
-                distance: -edge.dist(point),
-                normal: normal,
+                collision: edge!,
+                distance: -edge!.dist(point),
+                normal: normal!,
             }
         } else {
             dx = EMath.clamp(dx, -sizeX, sizeX);
@@ -1509,7 +1518,7 @@ export abstract class Physics2D {
     static getCircleCircleCollision(pointA: Vec2, radiusA: number, pointB: Vec2, radiusB: number) {
         let dist = pointA.dist(pointB) - radiusA - radiusB;
         let collision = pointA.addScaled(pointA.look(pointB), radiusA);
-        let normal = pointB.look(pointA);
+        let normal = pointA.look(pointB);
         return {
             inside: dist <= 0,
             collision,
@@ -1538,15 +1547,15 @@ export abstract class Physics2D {
             return;
         let vn1 = col.normal.dot(a.velocity);
         let vn2 = col.normal.dot(b.velocity);
-        a.velocity.addScaledSelf(col.normal, vn2 - vn1);
-        b.velocity.addScaledSelf(col.normal, vn1 - vn2);
+        a.velocity.addScaledSelf(col.normal, vn1 - vn2);
+        b.velocity.addScaledSelf(col.normal, vn2 - vn1);
         a.position.addScaledSelf(col.normal, -col.distance/2);
         b.position.addScaledSelf(col.normal, col.distance/2);
     }
     static resolveCircleAnchoredRectCollision(a: any, b: any, col: any) {
         if(!col.inside)
             return;
-        a.position = col.position.addScaled(col.normal, a.radius + 1e-6);
+        a.position = col.collision.addScaled(col.normal, a.radius + 1e-6);
         a.velocity.addScaledSelf(col.normal, -col.normal.dot(a.velocity)*2);
     }
 }
