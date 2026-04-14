@@ -201,7 +201,7 @@
                         let col = Physics2D.getCircleRectCollision(ball.position, ball.radius, rect.position, rect.rightOffset, rect.upOffset);
                         Physics2D.resolveCircleAnchoredRectCollision(ball, rect, col);
                         if(ball == myBall && col.inside && col.normal.y > 0.7 && Keypresses.keyPressed["w"]) {
-                            ball.velocity.y += 350;
+                            ball.velocity.y += 350 / Math.abs(ball.velocity.y + 1);
                         }
                     }
                 }
