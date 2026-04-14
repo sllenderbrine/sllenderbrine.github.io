@@ -5,13 +5,18 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
+            background-color: black;
         }
     </style>
 </head>
 <body>
     <script type="module">
-        import {WindowResizeObserver, WGL2Shader, Vec2, Color, Physics2D, Mat3, RenderLoop, Keypresses} from "./libge3/libge3_v20260414.js";
+        import {WindowResizeObserver, WGL2Shader, Vec2, Color, Physics2D, Mat3, RenderLoop, Keypresses, EMath} from "./libge3/libge3_v20260414.js";
         let canvas = document.createElement("canvas");
+        canvas.width = 1912;
+        canvas.height = 914;
+        canvas.style.objectFit = "contain";
+        console.log(canvas.style.aspectRatio)
         document.body.appendChild(canvas);
         const fsresize = new WindowResizeObserver();
         let gl = canvas.getContext("webgl2");
@@ -43,6 +48,7 @@
         const uResolution = shader.createUniform("u_resolution", "vec2");
         const uScale = shader.createUniform("u_scale", "vec2");
         const uColor = shader.createUniform("u_color", "vec3");
+        uResolution.setValues([canvas.width, canvas.height]);
         let circleMeshPositions = [];
         for(let i=0; i<16; i++) {
             let a1 = Math.PI*2*(i/16);
@@ -53,10 +59,8 @@
         }
         let rectMeshPositions = [-1,-1,1,-1,1,1,-1,-1,-1,1,1,1].map(x => x*0.5);
         fsresize.resizeEvent.connect((w, h) => {
-            canvas.width = w;
-            canvas.height = h;
-            gl.viewport(0, 0, w, h);
-            uResolution.setValues([w, h]);
+            canvas.style.width = `${w}px`;
+            canvas.style.height = `${h}px`;
         });
         let envBalls = [];
         let envRects = [];
@@ -161,8 +165,7 @@
         myBall.color = new Color("rgb(140, 90, 150)").lerpRgba(new Color("rgb(255, 170, 70)"), 0.5);
         myBall.color.sat += 20;
         new RenderLoop(dt => {
-            console.log("start")
-            // dt = dt * 0.1
+            dt = EMath.clamp(dt, 0, 0.5);
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
             for(let ring of rings) {
                 ring.spin(dt);
@@ -201,7 +204,7 @@
                         let col = Physics2D.getCircleRectCollision(ball.position, ball.radius, rect.position, rect.rightOffset, rect.upOffset);
                         Physics2D.resolveCircleAnchoredRectCollision(ball, rect, col);
                         if(ball == myBall && col.inside && col.normal.y > 0.7 && Keypresses.keyPressed["w"]) {
-                            ball.velocity.y += 350 / Math.abs(ball.velocity.y + 1);
+                            ball.velocity.y += 350 / Math.abs(ball.velocity.y/50 + 1);
                         }
                     }
                 }
@@ -210,8 +213,8 @@
                 uOffset.setValues([ball.position.x/canvas.width, ball.position.y/canvas.height]);
                 uScale.setValues([ball.radius, ball.radius]);
                 if(
-                    Math.abs(ball.position.x) > window.innerWidth
-                    || Math.abs(ball.position.y) > window.innerHeight
+                    Math.abs(ball.position.x) > 1912
+                    || Math.abs(ball.position.y) > 914
                 ) {
                     ball.position = Vec2.zero();
                     // ball.velocity = Vec2.zero();
