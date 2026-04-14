@@ -2230,7 +2230,6 @@ export class Physics2D {
                     obj.velocity = v2.addScaled(res.normal, vn1 - vn2);
                     ball.position.addScaledSelf(res.normal, res.overlap/2);
                     obj.position.addScaledSelf(res.normal, -res.overlap/2);
-                    break;
                 }
             } else {
                 let res = this.getBallRectCollision(ball, obj as Physics2DRect);
