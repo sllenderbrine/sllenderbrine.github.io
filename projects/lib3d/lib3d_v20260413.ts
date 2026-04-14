@@ -2214,6 +2214,8 @@ export class Physics2D {
             return;
         ball.velocity.y -= 500 * dt;
         ball.position.addScaledSelf(ball.velocity, dt);
+        let closestRes = null;
+        let closestDist = Infinity;
         for(let obj of this.objects) {
             if(obj.type == "ball") {
                 if(obj == ball)
@@ -2233,11 +2235,17 @@ export class Physics2D {
             } else {
                 let res = this.getBallRectCollision(ball, obj as Physics2DRect);
                 if(res) {
-                    ball.position = res.position.addScaled(res.normal, ball.radius + 1e-6);
-                    ball.velocity.addScaledSelf(res.normal, -res.normal.dot(ball.velocity)*2);
-                    break;
+                    let dist = res.position.dist(ball.position);
+                    if(dist < closestDist) {
+                        closestDist = dist;
+                        closestRes = res;
+                    }
                 }
             }
+        }
+        if(closestRes) {
+            ball.position = closestRes.position.addScaled(closestRes.normal, ball.radius + 1e-6);
+            ball.velocity.addScaledSelf(closestRes.normal, -closestRes.normal.dot(ball.velocity)*2);
         }
     }
     createRect(): Physics2DRect {
