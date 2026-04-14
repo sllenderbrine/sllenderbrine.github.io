@@ -1,5 +1,9 @@
-// compilation of all of the scripts i made that i use for 3d games
+// 3D/2D JS Game Engine Library
+// https://github.com/sllenderbrine
 
+///////////////////
+//  EMATH CLASS  //
+///////////////////
 export abstract class EMath {
     static clamp(n: number,a: number,b: number) : number {
         return Math.min(Math.max(n,a),b);
@@ -18,6 +22,9 @@ export abstract class EMath {
     }
 }
 
+//////////////////////
+//  VECTOR CLASSES  //
+//////////////////////
 export class Vec3 {
     x: number;
     y: number;
@@ -849,6 +856,9 @@ export class Vec2 {
 }
 
 
+//////////////////////
+//  MATRIX CLASSES  //
+//////////////////////
 // Column-major 4x4 matrix
 export abstract class Mat4 {
     constructor() {}
@@ -934,6 +944,55 @@ export abstract class Mat4 {
 }
 
 
+// Column-major 3x3 matrix
+export abstract class Mat3 {
+    constructor() {}
+
+    static new() {
+        return [
+            1, 0, 0,
+            0, 1, 0,
+            0, 0, 1,
+        ];
+    }
+    static translate(x: number, y: number) {
+        return [
+            1, 0, 0,
+            0, 1, 0,
+            x, y, 1,
+        ];
+    }
+    static scale(x: number, y: number) {
+        return [
+            x, 0, 0,
+            0, y, 0,
+            0, 0, 1,
+        ];
+    }
+    static rotate(a: number) {
+        const c = Math.cos(a);
+        const s = Math.sin(a);
+        return [
+            c, s, 0,
+            -s, c, 0,
+            0, 0, 1,
+        ];
+    }
+    static multiply(m1: number[], m2: number[]) {
+        const out = Mat3.new();
+        for(let i=0; i<3; i++) {
+            for(let j=0; j<3; j++) {
+                out[i*3 + j] = (
+                    m1[0*3 + j]! * m2[i*3 + 0]!
+                    + m1[1*3 + j]! * m2[i*3 + 1]!
+                    + m1[2*3 + j]! * m2[i*3 + 2]!
+                );
+            }
+        }
+        return out;
+    }
+}
+
 
 const gradients2D: Vec2[] = [];
 for(let i=0;i<12;i++) {
@@ -953,6 +1012,9 @@ for(let i=0;i<16;i++) {
     ));
 }
 
+///////////////////
+//  NOISE CLASS  //
+///////////////////
 export abstract class Noise {
     static fade(t: number) : number {
         return t * t * t * (t * (t * 6 - 15) + 10);
@@ -1086,98 +1148,9 @@ export abstract class Noise {
 }
 
 
-
-export class Signal<T extends any[]> {
-    connections: Connection<T>[] = [];
-    timeFired: number = -Number.MAX_VALUE;
-    onConnect?: (conn: Connection<T>) => void;
-    constructor({
-        onConnect = undefined,
-    }: {
-        onConnect?: (conn: Connection<T>) => void,
-    } = {}) {
-        this.onConnect = onConnect;
-    }
-    connect(callback: (...args: T) => void) {
-        const conn = new Connection<T>(this, callback);
-        this.connections.push(conn);
-        if(this.onConnect) {
-            this.onConnect(conn);
-        }
-        return conn;
-    }
-    once(callback: (...args: T) => void) {
-        const conn = this.connect((...args: T) => {
-            callback(...args);
-            conn.disconnect();
-        });
-        return conn;
-    }
-    async wait() {
-        return new Promise<T>(res => {
-            this.once((...args: T) => {
-                res(args);
-            });
-        });
-    }
-    fire(...args: T) {
-        this.timeFired = performance.now();
-        for(const conn of [...this.connections]) {
-            conn.fire(...args);
-        }
-    }
-    getTimeSinceFired() {
-        return performance.now() / 1000 - this.timeFired;
-    }
-}
-
-export class Connection<T extends any[]> {
-    groups: ConnectionGroup[] = [];
-    constructor(public signal: Signal<T>, public callback: (...args: T) => void) {
-        
-    }
-    disconnect() {
-        this.signal.connections.splice(this.signal.connections.indexOf(this), 1);
-        for(const group of this.groups) {
-            group.connections.splice(group.connections.indexOf(this), 1);
-        }
-        this.groups = [];
-    }
-    fire(...args: T) {
-        this.callback(...args);
-    }
-}
-
-export class HtmlConnection {
-    groups: ConnectionGroup[] = [];
-    constructor(public el: EventTarget, public name: string, public callback: (e: any) => void) {
-        this.el.addEventListener(this.name, this.callback);
-    }
-    disconnect() {
-        this.el.removeEventListener(this.name, this.callback);
-        for(const group of this.groups) {
-            group.connections.splice(group.connections.indexOf(this), 1);
-        }
-        this.groups = [];
-    }
-}
-
-export class ConnectionGroup {
-    connections: (Connection<any> | HtmlConnection)[] = [];
-    constructor() {
-
-    }
-    add(conn: Connection<any> | HtmlConnection) {
-        this.connections.push(conn);
-    }
-    disconnectAll() {
-        for(const conn of [...this.connections]) {
-            conn.disconnect();
-        }
-        this.connections = [];
-    }
-}
-
+//////////////////////
+//  CAMERA CLASSES  //
+//////////////////////
 export class Camera3D {
     private _fovY: number = 95/180*Math.PI;
     get fovY() {
@@ -1359,6 +1332,406 @@ export class Camera3D {
 }
 
 
+////////////////////
+//  MESH CLASSES  //
+////////////////////
+export class Mesh3D {
+    positions: number[] = [];
+    texcoords: number[] = [];
+    normals: number[] = [];
+    constructor() {
+
+    }
+    clone(): Mesh3D {
+        return new Mesh3D().append(this);
+    }
+    translate(x: number, y: number, z: number): this {
+        for(let i=0; i<this.positions.length; i+=3) {
+            this.positions[i]! += x;
+            this.positions[i+1]! += y;
+            this.positions[i+2]! += z;
+        }
+        return this;
+    }
+    scale(x: number, y: number, z: number): this {
+        for(let i=0; i<this.positions.length; i+=3) {
+            this.positions[i]! *= x;
+            this.positions[i+1]! *= y;
+            this.positions[i+2]! *= z;
+        }
+        return this;
+    }
+    rotate(ax: number, ay: number, az: number): this {
+        for(let i=0; i<this.positions.length; i+=3) {
+            let p = new Vec3(this.positions[i]!, this.positions[i+1]!, this.positions[i+2]!);
+            p.rotXYZSelfC(ax, ay, az);
+            this.positions[i] = p.x;
+            this.positions[i+1] = p.y;
+            this.positions[i+2] = p.z;
+        }
+        for(let i=0; i<this.normals.length; i+=3) {
+            let p = new Vec3(this.normals[i]!, this.normals[i+1]!, this.normals[i+2]!);
+            p.rotXYZSelfC(ax, ay, az);
+            this.normals[i] = p.x;
+            this.normals[i+1] = p.y;
+            this.normals[i+2] = p.z;
+        }
+        return this;
+    }
+    rotateAround(x: number, y: number, z: number, ax: number, ay: number, az: number): this {
+        for(let i=0; i<this.positions.length; i+=3) {
+            let p = new Vec3(this.positions[i]! - x, this.positions[i+1]! - y, this.positions[i+2]! - z);
+            p.rotXYZSelfC(ax, ay, az);
+            this.positions[i] = p.x + x;
+            this.positions[i+1] = p.y + y;
+            this.positions[i+2] = p.z + z;
+        }
+        for(let i=0; i<this.normals.length; i+=3) {
+            let p = new Vec3(this.normals[i]!, this.normals[i+1]!, this.normals[i+2]!);
+            p.rotXYZSelfC(ax, ay, az);
+            this.normals[i] = p.x;
+            this.normals[i+1] = p.y;
+            this.normals[i+2] = p.z;
+        }
+        return this;
+    }
+    append(...meshes: Mesh3D[]): this {
+        for(const mesh of meshes) {
+            this.positions.push(...mesh.positions);
+            this.texcoords.push(...mesh.texcoords);
+            this.normals.push(...mesh.normals);
+        }
+        return this;
+    }
+    pushPositions(arr: number[], x: number, y: number, z: number) {
+        for(let i=0; i<this.positions.length; i+=3) {
+            arr.push(this.positions[i]! + x);
+            arr.push(this.positions[i+1]! + y);
+            arr.push(this.positions[i+2]! + z);
+        }
+        return arr;
+    }
+    setNormals(x: number, y: number, z: number): this {
+        for(let i=0; i<this.normals.length; i+=3) {
+            this.normals[i] = x;
+            this.normals[i+1] = y;
+            this.normals[i+2] = z;
+        }
+        return this;
+    }
+    static trianglesToEdges(positions: number[]): number[] {
+        let edges: number[] = [];
+        for(let i=0; i<positions.length; i+=9) {
+            edges.push(positions[i]!, positions[i+1]!, positions[i+2]!, positions[i+3]!, positions[i+4]!, positions[i+5]!);
+            edges.push(positions[i+3]!, positions[i+4]!, positions[i+5]!, positions[i+6]!, positions[i+7]!, positions[i+8]!);
+            edges.push(positions[i+6]!, positions[i+7]!, positions[i+8]!, positions[i]!, positions[i+1]!, positions[i+2]!);
+        }
+        return edges;
+    }
+    static triangleQuadsToEdges(positions: number[]): number[] {
+        let edges: number[] = [];
+        for(let i=0; i<positions.length; i+=18) {
+            edges.push(positions[i]!, positions[i+1]!, positions[i+2]!, positions[i+3]!, positions[i+4]!, positions[i+5]!);
+            edges.push(positions[i+3]!, positions[i+4]!, positions[i+5]!, positions[i+6]!, positions[i+7]!, positions[i+8]!);
+            edges.push(positions[i+6]!, positions[i+7]!, positions[i+8]!, positions[i+9]!, positions[i+10]!, positions[i+11]!);
+            edges.push(positions[i+9]!, positions[i+10]!, positions[i+11]!, positions[i+12]!, positions[i+13]!, positions[i+14]!);
+        }
+        return edges;
+    }
+}
+
+
+///////////////////////
+//  PHYSICS CLASSES  //
+///////////////////////
+export abstract class Physics2D {
+    static getPointRectCollision(point: Vec2, center: Vec2, rightOffset: Vec2, upOffset: Vec2) {
+        const right = rightOffset.norm();
+        const up = upOffset.norm();
+        const sizeX = rightOffset.length();
+        const sizeY = upOffset.length();
+        let diff = point.sub(center);
+        let dx = diff.dot(right);
+        let dy = diff.dot(up);
+        let isInside = (Math.abs(dx) < sizeX && Math.abs(dy) < sizeY);
+        if(isInside) {
+            let d1 = Math.abs(point.sub(center.addScaled(up, sizeY)).dot(up));
+            let d2 = Math.abs(point.sub(center.addScaled(up, -sizeY)).dot(up));
+            let d3 = Math.abs(point.sub(center.addScaled(right, sizeX)).dot(right));
+            let d4 = Math.abs(point.sub(center.addScaled(right, -sizeX)).dot(right));
+            let cd = Math.min(d1, d2, d3, d4);
+            let edge: Vec2;
+            let normal: Vec2;
+            if(EMath.isClose(cd, d1)) {
+                edge = center.addScaled(right, dx).addScaled(up, sizeY);
+                normal = up;
+            } else if(EMath.isClose(cd, d2)) {
+                edge = center.addScaled(right, dx).addScaled(up, -sizeY);
+                normal = up.neg();
+            } else if(EMath.isClose(cd, d3)) {
+                edge = center.addScaled(up, dy).addScaled(right, sizeX);
+                normal = right;
+            } else {
+                edge = center.addScaled(up, dy).addScaled(right, -sizeX);
+                normal = right.neg();
+            }
+            return {
+                inside: true,
+                collision: edge,
+                distance: -edge.dist(point),
+                normal: normal,
+            }
+        } else {
+            dx = EMath.clamp(dx, -sizeX, sizeX);
+            dy = EMath.clamp(dy, -sizeY, sizeY);
+            let edge = center.addScaled(right, dx).addScaled(up, dy);
+            let dist = edge.dist(point);
+            return {
+                inside: false,
+                collision: edge,
+                distance: dist,
+                normal: edge.look(point),
+            };
+        }
+    }
+    static getIsPointInsideRect(point: Vec2, center: Vec2, rightOffset: Vec2, upOffset: Vec2) {
+        let diff = point.sub(center);
+        let dx = diff.dot(rightOffset.norm());
+        let dy = diff.dot(upOffset.norm());
+        return (Math.abs(dx) < rightOffset.length() && Math.abs(dy) < upOffset.length());
+    }
+    static getCircleRectCollision(point: Vec2, radius: number, center: Vec2, rightOffset: Vec2, upOffset: Vec2) {
+        let res = this.getPointRectCollision(point, center, rightOffset, upOffset);
+        res.distance -= radius;
+        if(res.distance <= 0) res.inside = true;
+        return res;
+    }
+    static getCircleCircleCollision(pointA: Vec2, radiusA: number, pointB: Vec2, radiusB: number) {
+        let dist = pointA.dist(pointB) - radiusA - radiusB;
+        let collision = pointA.addScaled(pointA.look(pointB), radiusA);
+        let normal = pointB.look(pointA);
+        return {
+            inside: dist <= 0,
+            collision,
+            distance: dist,
+            normal,
+        };
+    }
+    static getCircleLineCollision(point: Vec2, radius: number, start: Vec2, end: Vec2) {
+        let dir = start.look(end);
+        let off = point.sub(start);
+        let t = off.dot(dir);
+        let maxT = end.dist(start);
+        t = EMath.clamp(t, 0, maxT);
+        let collision = start.addScaled(dir, t);
+        let normal = collision.look(point);
+        let dist = collision.dist(point) - radius;
+        return {
+            inside: dist <= 0,
+            collision,
+            distance: dist,
+            normal,
+        };
+    }
+    static resolveCircleCircleCollision(a: any, b: any, col: any) {
+        if(!col.inside)
+            return;
+        let vn1 = col.normal.dot(a.velocity);
+        let vn2 = col.normal.dot(b.velocity);
+        a.velocity.addScaledSelf(col.normal, vn2 - vn1);
+        b.velocity.addScaledSelf(col.normal, vn1 - vn2);
+        a.position.addScaledSelf(col.normal, -col.distance/2);
+        b.position.addScaledSelf(col.normal, col.distance/2);
+    }
+    static resolveCircleAnchoredRectCollision(a: any, b: any, col: any) {
+        if(!col.inside)
+            return;
+        a.position = col.position.addScaled(col.normal, a.radius + 1e-6);
+        a.velocity.addScaledSelf(col.normal, -col.normal.dot(a.velocity)*2);
+    }
+}
+
+
+export abstract class Physics3D {
+    static raycastVoxels<T>(
+        origin: Vec3,
+        direction: Vec3,
+        predicate: (pos:Vec3, normal:Vec3, dist:number) => T | undefined,
+        maxIterations = 1000
+    ): T | undefined {
+        const invDirAbs = direction.rdivF(1).map(x => Math.abs(x));
+        const sign = direction.map(x => x > 0 ? 1 : 0);
+        const step = direction.map(x => x > 0 ? 1 : -1);
+        let tMaxX = invDirAbs.x * (sign.x===0 ? (origin.x - Math.floor(origin.x)) : (Math.floor(origin.x) + 1 - origin.x));
+        let tMaxY = invDirAbs.y * (sign.y===0 ? (origin.y - Math.floor(origin.y)) : (Math.floor(origin.y) + 1 - origin.y));
+        let tMaxZ = invDirAbs.z * (sign.z===0 ? (origin.z - Math.floor(origin.z)) : (Math.floor(origin.z) + 1 - origin.z));
+        let pos = new Vec3(origin).mapSelf(x => Math.floor(x));
+        let distance = 0;
+        let normal = Vec3.zero();
+        for(let i=0; i<maxIterations; i++) {
+            let res = predicate(pos, normal, distance);
+            if(res !== undefined)
+                return res;
+            if(tMaxX < tMaxY) {
+                if(tMaxX < tMaxZ) {
+                    distance = tMaxX;
+                    normal.setC(-step.x, 0, 0);
+                    tMaxX += invDirAbs.x;
+                    pos.x += step.x;
+                } else {
+                    distance = tMaxZ;
+                    normal.setC(0, 0, -step.z);
+                    tMaxZ += invDirAbs.z;
+                    pos.z += step.z;
+                }
+            } else {
+                if(tMaxY < tMaxZ) {
+                    distance = tMaxY;
+                    normal.setC(0, -step.y, 0);
+                    tMaxY += invDirAbs.y;
+                    pos.y += step.y;
+                } else {
+                    distance = tMaxZ;
+                    normal.setC(0, 0, -step.z);
+                    tMaxZ += invDirAbs.z;
+                    pos.z += step.z;
+                }
+            }
+        }
+        return undefined;
+    }
+    static raycastBox(
+        origin: Vec3,
+        direction: Vec3,
+        bounds: Vec3[]
+    ) {
+        const invDir = direction.rdivF(1);
+        const sign = direction.map(x => x > 0 ? 1 : 0);
+        const signFlip = direction.map(x => x > 0 ? 0 : 1);
+        const stepFlip = direction.map(x => x > 0 ? -1 : 1);
+        let tmin = (bounds[signFlip.x]!.x - origin.x) * invDir.x;
+        let tmax = (bounds[sign.x]!.x - origin.x) * invDir.x;
+        let normal = new Vec3(stepFlip.x,0,0);
+        let tymin = (bounds[signFlip.y]!.y - origin.y) * invDir.y;
+        let tymax = (bounds[sign.y]!.y - origin.y) * invDir.y;
+        if((tmin > tymax) || (tymin > tmax)) return null;
+        if(tymin > tmin) {
+            tmin = tymin;
+            normal = new Vec3(0,stepFlip.y,0);
+        }
+        if(tymax < tmax) tmax = tymax;
+        let tzmin = (bounds[signFlip.z]!.z - origin.z) * invDir.z;
+        let tzmax = (bounds[sign.z]!.z - origin.z) * invDir.z;
+        if((tmin > tzmax) || (tzmin > tmax)) return null;
+        if(tzmin > tmin) {
+            tmin = tzmin;
+            normal = new Vec3(0,0,stepFlip.z);
+        }
+        if(tzmax < tmax) tmax = tzmax;
+        const distance = tmin < 0 ? 0 : tmin;
+        return { normal, distance, intersection: origin.addScaled(direction, distance) };
+    }
+}
+
+
+/////////////////////
+//  EVENT CLASSES  //
+/////////////////////
+export class Signal<T extends any[]> {
+    connections: Connection<T>[] = [];
+    timeFired: number = -Number.MAX_VALUE;
+    onConnect?: (conn: Connection<T>) => void;
+    constructor({
+        onConnect = undefined,
+    }: {
+        onConnect?: (conn: Connection<T>) => void,
+    } = {}) {
+        this.onConnect = onConnect;
+    }
+    connect(callback: (...args: T) => void) {
+        const conn = new Connection<T>(this, callback);
+        this.connections.push(conn);
+        if(this.onConnect) {
+            this.onConnect(conn);
+        }
+        return conn;
+    }
+    once(callback: (...args: T) => void) {
+        const conn = this.connect((...args: T) => {
+            callback(...args);
+            conn.disconnect();
+        });
+        return conn;
+    }
+    async wait() {
+        return new Promise<T>(res => {
+            this.once((...args: T) => {
+                res(args);
+            });
+        });
+    }
+    fire(...args: T) {
+        this.timeFired = performance.now();
+        for(const conn of [...this.connections]) {
+            conn.fire(...args);
+        }
+    }
+    getTimeSinceFired() {
+        return performance.now() / 1000 - this.timeFired;
+    }
+}
+
+export class Connection<T extends any[]> {
+    groups: ConnectionGroup[] = [];
+    constructor(public signal: Signal<T>, public callback: (...args: T) => void) {
+        
+    }
+    disconnect() {
+        this.signal.connections.splice(this.signal.connections.indexOf(this), 1);
+        for(const group of this.groups) {
+            group.connections.splice(group.connections.indexOf(this), 1);
+        }
+        this.groups = [];
+    }
+    fire(...args: T) {
+        this.callback(...args);
+    }
+}
+
+export class HtmlConnection {
+    groups: ConnectionGroup[] = [];
+    constructor(public el: EventTarget, public name: string, public callback: (e: any) => void) {
+        this.el.addEventListener(this.name, this.callback);
+    }
+    disconnect() {
+        this.el.removeEventListener(this.name, this.callback);
+        for(const group of this.groups) {
+            group.connections.splice(group.connections.indexOf(this), 1);
+        }
+        this.groups = [];
+    }
+}
+
+export class ConnectionGroup {
+    connections: (Connection<any> | HtmlConnection)[] = [];
+    constructor() {
+
+    }
+    add(conn: Connection<any> | HtmlConnection) {
+        this.connections.push(conn);
+    }
+    disconnectAll() {
+        for(const conn of [...this.connections]) {
+            conn.disconnect();
+        }
+        this.connections = [];
+    }
+}
+
+
+/////////////////////////////
+//  WEBGL2 SHADER CLASSES  //
+/////////////////////////////
 export class WGL2ComponentShader {
     wShader: WebGLShader;
     constructor(public gl: WebGL2RenderingContext, public type: "vertex" | "fragment", public source: string) {
@@ -1644,6 +2017,10 @@ export class WGL2Shader {
     }
 }
 
+
+///////////////////////////
+//  TEXTURE ATLAS CLASS  //
+///////////////////////////
 export type AtlasImage = {x: number, y: number, w: number, h: number, img: HTMLImageElement, name: string};
 
 export class TextureAtlas {
@@ -1727,290 +2104,10 @@ export class TextureAtlas {
     }
 }
 
-export abstract class Keypresses {
-    static keyPressed: {[key:string]: any} = {};
-    static pressedKeys: Set<string> = new Set();
-    static keyDownEvent = new Signal<[keyName:string]>();
-    static keyUpEvent = new Signal<[keyName:string]>();
-}
 
-export function keydown(key: string) {
-    Keypresses.keyPressed[key] = true;
-    Keypresses.pressedKeys.add(key);
-    Keypresses.keyDownEvent.fire(key);
-}
-
-export function keyup(key: string) {
-    delete Keypresses.keyPressed[key];
-    Keypresses.pressedKeys.delete(key);
-    Keypresses.keyUpEvent.fire(key);
-}
-
-window.addEventListener("keydown", e => {
-    const key = e.key.toLowerCase();
-    keydown(key);
-});
-
-window.addEventListener("keyup", e => {
-    const key = e.key.toLowerCase();
-    keyup(key);
-});
-
-window.addEventListener("mousedown", e => {
-    if(e.button === 0) {
-        keydown("lmb");
-    } else if(e.button === 1) {
-        keydown("mmb");
-    } else if(e.button === 2) {
-        keydown("rmb");
-    }
-});
-
-window.addEventListener("mouseup", e => {
-    if(e.button === 0) {
-        keyup("lmb");
-    } else if(e.button === 1) {
-        keyup("mmb");
-    } else if(e.button === 2) {
-        keyup("rmb");
-    }
-});
-
-export class Mesh3D {
-    positions: number[] = [];
-    texcoords: number[] = [];
-    normals: number[] = [];
-    constructor() {
-
-    }
-    clone(): Mesh3D {
-        return new Mesh3D().append(this);
-    }
-    translate(x: number, y: number, z: number): this {
-        for(let i=0; i<this.positions.length; i+=3) {
-            this.positions[i]! += x;
-            this.positions[i+1]! += y;
-            this.positions[i+2]! += z;
-        }
-        return this;
-    }
-    scale(x: number, y: number, z: number): this {
-        for(let i=0; i<this.positions.length; i+=3) {
-            this.positions[i]! *= x;
-            this.positions[i+1]! *= y;
-            this.positions[i+2]! *= z;
-        }
-        return this;
-    }
-    rotate(ax: number, ay: number, az: number): this {
-        for(let i=0; i<this.positions.length; i+=3) {
-            let p = new Vec3(this.positions[i]!, this.positions[i+1]!, this.positions[i+2]!);
-            p.rotXYZSelfC(ax, ay, az);
-            this.positions[i] = p.x;
-            this.positions[i+1] = p.y;
-            this.positions[i+2] = p.z;
-        }
-        for(let i=0; i<this.normals.length; i+=3) {
-            let p = new Vec3(this.normals[i]!, this.normals[i+1]!, this.normals[i+2]!);
-            p.rotXYZSelfC(ax, ay, az);
-            this.normals[i] = p.x;
-            this.normals[i+1] = p.y;
-            this.normals[i+2] = p.z;
-        }
-        return this;
-    }
-    rotateAround(x: number, y: number, z: number, ax: number, ay: number, az: number): this {
-        for(let i=0; i<this.positions.length; i+=3) {
-            let p = new Vec3(this.positions[i]! - x, this.positions[i+1]! - y, this.positions[i+2]! - z);
-            p.rotXYZSelfC(ax, ay, az);
-            this.positions[i] = p.x + x;
-            this.positions[i+1] = p.y + y;
-            this.positions[i+2] = p.z + z;
-        }
-        for(let i=0; i<this.normals.length; i+=3) {
-            let p = new Vec3(this.normals[i]!, this.normals[i+1]!, this.normals[i+2]!);
-            p.rotXYZSelfC(ax, ay, az);
-            this.normals[i] = p.x;
-            this.normals[i+1] = p.y;
-            this.normals[i+2] = p.z;
-        }
-        return this;
-    }
-    append(...meshes: Mesh3D[]): this {
-        for(const mesh of meshes) {
-            this.positions.push(...mesh.positions);
-            this.texcoords.push(...mesh.texcoords);
-            this.normals.push(...mesh.normals);
-        }
-        return this;
-    }
-    pushPositions(arr: number[], x: number, y: number, z: number) {
-        for(let i=0; i<this.positions.length; i+=3) {
-            arr.push(this.positions[i]! + x);
-            arr.push(this.positions[i+1]! + y);
-            arr.push(this.positions[i+2]! + z);
-        }
-        return arr;
-    }
-    setNormals(x: number, y: number, z: number): this {
-        for(let i=0; i<this.normals.length; i+=3) {
-            this.normals[i] = x;
-            this.normals[i+1] = y;
-            this.normals[i+2] = z;
-        }
-        return this;
-    }
-    static trianglesToEdges(positions: number[]): number[] {
-        let edges: number[] = [];
-        for(let i=0; i<positions.length; i+=9) {
-            edges.push(positions[i]!, positions[i+1]!, positions[i+2]!, positions[i+3]!, positions[i+4]!, positions[i+5]!);
-            edges.push(positions[i+3]!, positions[i+4]!, positions[i+5]!, positions[i+6]!, positions[i+7]!, positions[i+8]!);
-            edges.push(positions[i+6]!, positions[i+7]!, positions[i+8]!, positions[i]!, positions[i+1]!, positions[i+2]!);
-        }
-        return edges;
-    }
-    static triangleQuadsToEdges(positions: number[]): number[] {
-        let edges: number[] = [];
-        for(let i=0; i<positions.length; i+=18) {
-            edges.push(positions[i]!, positions[i+1]!, positions[i+2]!, positions[i+3]!, positions[i+4]!, positions[i+5]!);
-            edges.push(positions[i+3]!, positions[i+4]!, positions[i+5]!, positions[i+6]!, positions[i+7]!, positions[i+8]!);
-            edges.push(positions[i+6]!, positions[i+7]!, positions[i+8]!, positions[i+9]!, positions[i+10]!, positions[i+11]!);
-            edges.push(positions[i+9]!, positions[i+10]!, positions[i+11]!, positions[i+12]!, positions[i+13]!, positions[i+14]!);
-        }
-        return edges;
-    }
-}
-
-export function voxelRaymarch<T>(
-    origin: Vec3,
-    direction: Vec3,
-    predicate: (pos:Vec3, normal:Vec3, dist:number) => T | undefined,
-    maxIterations = 1000
-): T | undefined {
-    const invDirAbs = direction.rdivF(1).map(x => Math.abs(x));
-    const sign = direction.map(x => x > 0 ? 1 : 0);
-    const step = direction.map(x => x > 0 ? 1 : -1);
-    let tMaxX = invDirAbs.x * (sign.x===0 ? (origin.x - Math.floor(origin.x)) : (Math.floor(origin.x) + 1 - origin.x));
-    let tMaxY = invDirAbs.y * (sign.y===0 ? (origin.y - Math.floor(origin.y)) : (Math.floor(origin.y) + 1 - origin.y));
-    let tMaxZ = invDirAbs.z * (sign.z===0 ? (origin.z - Math.floor(origin.z)) : (Math.floor(origin.z) + 1 - origin.z));
-    let pos = new Vec3(origin).mapSelf(x => Math.floor(x));
-    let distance = 0;
-    let normal = Vec3.zero();
-    for(let i=0; i<maxIterations; i++) {
-        let res = predicate(pos, normal, distance);
-        if(res !== undefined)
-            return res;
-        if(tMaxX < tMaxY) {
-            if(tMaxX < tMaxZ) {
-                distance = tMaxX;
-                normal.setC(-step.x, 0, 0);
-                tMaxX += invDirAbs.x;
-                pos.x += step.x;
-            } else {
-                distance = tMaxZ;
-                normal.setC(0, 0, -step.z);
-                tMaxZ += invDirAbs.z;
-                pos.z += step.z;
-            }
-        } else {
-            if(tMaxY < tMaxZ) {
-                distance = tMaxY;
-                normal.setC(0, -step.y, 0);
-                tMaxY += invDirAbs.y;
-                pos.y += step.y;
-            } else {
-                distance = tMaxZ;
-                normal.setC(0, 0, -step.z);
-                tMaxZ += invDirAbs.z;
-                pos.z += step.z;
-            }
-        }
-    }
-    return undefined;
-}
-
-export function intersectsWithBox(
-    origin: Vec3,
-    direction: Vec3,
-    bounds: Vec3[]
-) {
-    const invDir = direction.rdivF(1);
-    const sign = direction.map(x => x > 0 ? 1 : 0);
-    const signFlip = direction.map(x => x > 0 ? 0 : 1);
-    const stepFlip = direction.map(x => x > 0 ? -1 : 1);
-    let tmin = (bounds[signFlip.x]!.x - origin.x) * invDir.x;
-    let tmax = (bounds[sign.x]!.x - origin.x) * invDir.x;
-    let normal = new Vec3(stepFlip.x,0,0);
-    let tymin = (bounds[signFlip.y]!.y - origin.y) * invDir.y;
-    let tymax = (bounds[sign.y]!.y - origin.y) * invDir.y;
-    if((tmin > tymax) || (tymin > tmax)) return null;
-    if(tymin > tmin) {
-        tmin = tymin;
-        normal = new Vec3(0,stepFlip.y,0);
-    }
-    if(tymax < tmax) tmax = tymax;
-    let tzmin = (bounds[signFlip.z]!.z - origin.z) * invDir.z;
-    let tzmax = (bounds[sign.z]!.z - origin.z) * invDir.z;
-    if((tmin > tzmax) || (tzmin > tmax)) return null;
-    if(tzmin > tmin) {
-        tmin = tzmin;
-        normal = new Vec3(0,0,stepFlip.z);
-    }
-    if(tzmax < tmax) tmax = tzmax;
-    const distance = tmin < 0 ? 0 : tmin;
-    return { normal, distance, intersection: origin.addScaled(direction, distance) };
-}
-
-export class PointerLock {
-    connections = new ConnectionGroup();
-    pointerLockChangeEvent = new Signal();
-    lockedMouseMoveEvent = new Signal();
-    isEnabled = false;
-    constructor() {
-        this.connections.add(new HtmlConnection(window, "mousedown", (e: MouseEvent) => {
-            if(this.isEnabled && document.pointerLockElement == null) {
-                document.body.requestPointerLock();
-            }
-        }));
-        this.connections.add(new HtmlConnection(window, "mousemove", (e: MouseEvent) => {
-            if(document.pointerLockElement != null)
-                this.lockedMouseMoveEvent.fire(e.movementX, e.movementY);
-        }));
-        this.connections.add(new HtmlConnection(document, "pointerlockchange", () => {
-            this.pointerLockChangeEvent.fire(document.pointerLockElement != null);
-        }));
-    }
-    lock(): this {
-        this.isEnabled = true;
-        document.body.requestPointerLock();
-        return this;
-    }
-    unlock(): this {
-        this.isEnabled = false;
-        document.exitPointerLock();
-        return this;
-    }
-    remove() {
-        this.connections.disconnectAll();
-    }
-}
-
-export class FullscreenResize {
-    resizeEvent: Signal<[w: number, h: number]> = new Signal({
-        onConnect: conn => conn.fire(window.innerWidth, window.innerHeight),
-    });
-    connections = new ConnectionGroup();
-    constructor() {
-        this.connections.add(new HtmlConnection(window, "resize", () => {
-            this.resizeEvent.fire(window.innerWidth, window.innerHeight);
-        }));
-    }
-    remove() {
-        this.connections.disconnectAll();
-    }
-}
-
-
+///////////////////
+//  COLOR CLASS  //
+///////////////////
 export class Color {
     // RGB 0-255
     r: number;
@@ -2084,6 +2181,116 @@ export class Color {
     }
 }
 
+
+/////////////////////
+//  INPUT CLASSES  //
+/////////////////////
+export abstract class Keypresses {
+    static keyPressed: {[key:string]: any} = {};
+    static pressedKeys: Set<string> = new Set();
+    static keyDownEvent = new Signal<[keyName:string]>();
+    static keyUpEvent = new Signal<[keyName:string]>();
+}
+
+export function keydown(key: string) {
+    Keypresses.keyPressed[key] = true;
+    Keypresses.pressedKeys.add(key);
+    Keypresses.keyDownEvent.fire(key);
+}
+
+export function keyup(key: string) {
+    delete Keypresses.keyPressed[key];
+    Keypresses.pressedKeys.delete(key);
+    Keypresses.keyUpEvent.fire(key);
+}
+
+window.addEventListener("keydown", e => {
+    const key = e.key.toLowerCase();
+    keydown(key);
+});
+
+window.addEventListener("keyup", e => {
+    const key = e.key.toLowerCase();
+    keyup(key);
+});
+
+window.addEventListener("mousedown", e => {
+    if(e.button === 0) {
+        keydown("lmb");
+    } else if(e.button === 1) {
+        keydown("mmb");
+    } else if(e.button === 2) {
+        keydown("rmb");
+    }
+});
+
+window.addEventListener("mouseup", e => {
+    if(e.button === 0) {
+        keyup("lmb");
+    } else if(e.button === 1) {
+        keyup("mmb");
+    } else if(e.button === 2) {
+        keyup("rmb");
+    }
+});
+
+export class PointerLock {
+    connections = new ConnectionGroup();
+    pointerLockChangeEvent = new Signal();
+    lockedMouseMoveEvent = new Signal();
+    isEnabled = false;
+    constructor() {
+        this.connections.add(new HtmlConnection(window, "mousedown", (e: MouseEvent) => {
+            if(this.isEnabled && document.pointerLockElement == null) {
+                document.body.requestPointerLock();
+            }
+        }));
+        this.connections.add(new HtmlConnection(window, "mousemove", (e: MouseEvent) => {
+            if(document.pointerLockElement != null)
+                this.lockedMouseMoveEvent.fire(e.movementX, e.movementY);
+        }));
+        this.connections.add(new HtmlConnection(document, "pointerlockchange", () => {
+            this.pointerLockChangeEvent.fire(document.pointerLockElement != null);
+        }));
+    }
+    lock(): this {
+        this.isEnabled = true;
+        document.body.requestPointerLock();
+        return this;
+    }
+    unlock(): this {
+        this.isEnabled = false;
+        document.exitPointerLock();
+        return this;
+    }
+    remove() {
+        this.connections.disconnectAll();
+    }
+}
+
+
+////////////////////////
+//  OBSERVER CLASSES  //
+////////////////////////
+export class WindowResizeObserver {
+    resizeEvent: Signal<[w: number, h: number]> = new Signal({
+        onConnect: conn => conn.fire(window.innerWidth, window.innerHeight),
+    });
+    connections = new ConnectionGroup();
+    constructor() {
+        this.connections.add(new HtmlConnection(window, "resize", () => {
+            this.resizeEvent.fire(window.innerWidth, window.innerHeight);
+        }));
+    }
+    remove() {
+        this.connections.disconnectAll();
+    }
+}
+
+
+/////////////////////////
+//  RENDER LOOP CLASS  //
+/////////////////////////
 export class RenderLoop {
     runIndex = 0;
     isRunning = false;
@@ -2115,207 +2322,5 @@ export class RenderLoop {
         }
         render();
         return this;
-    }
-}
-
-
-// Column-major 3x3 matrix
-export abstract class Mat3 {
-    constructor() {}
-
-    static new() {
-        return [
-            1, 0, 0,
-            0, 1, 0,
-            0, 0, 1,
-        ];
-    }
-    static translate(x: number, y: number) {
-        return [
-            1, 0, 0,
-            0, 1, 0,
-            x, y, 1,
-        ];
-    }
-    static scale(x: number, y: number) {
-        return [
-            x, 0, 0,
-            0, y, 0,
-            0, 0, 1,
-        ];
-    }
-    static rotate(a: number) {
-        const c = Math.cos(a);
-        const s = Math.sin(a);
-        return [
-            c, s, 0,
-            -s, c, 0,
-            0, 0, 1,
-        ];
-    }
-    static multiply(m1: number[], m2: number[]) {
-        const out = Mat3.new();
-        for(let i=0; i<3; i++) {
-            for(let j=0; j<3; j++) {
-                out[i*3 + j] = (
-                    m1[0*3 + j]! * m2[i*3 + 0]!
-                    + m1[1*3 + j]! * m2[i*3 + 1]!
-                    + m1[2*3 + j]! * m2[i*3 + 2]!
-                );
-            }
-        }
-        return out;
-    }
-}
-
-export type Physics2DRectState = Physics2DRect | {size:Vec2, position:Vec2, up:Vec2, right:Vec2};
-export type Physics2DBallState = Physics2DBall | {radius:number, position:Vec2};
-
-export class Physics2DBall {
-    radius = 10;
-    position = Vec2.zero();
-    velocity = Vec2.zero();
-    anchored = false;
-    type = "ball";
-    constructor() {}
-}
-
-export class Physics2DRect {
-    size = new Vec2(100, 10);
-    position = Vec2.zero();
-    rotation = 0;
-    up = new Vec2(0, 1).rotate(this.rotation);
-    right = new Vec2(1, 0).rotate(this.rotation);
-    anchored = true;
-    velocity = Vec2.zero();
-    type = "rect";
-    constructor() {}
-    setRotation(a: number) {
-        this.rotation = a;
-        this.up = new Vec2(0, 1).rotate(this.rotation);
-        this.right = new Vec2(1, 0).rotate(this.rotation);
-    }
-}
-
-export class Physics2D {
-    constructor() {}
-    objects: (Physics2DRect | Physics2DBall)[] = [];
-    update(dt: number) {
-        for(let obj of this.objects) {
-            if(obj.type == "ball") {
-                this.updateBall(obj as Physics2DBall, dt);
-            } else {
-
-            }
-        }
-    }
-    updateBall(ball: Physics2DBall, dt: number) {
-        if(ball.anchored)
-            return;
-        ball.velocity.y -= 500 * dt;
-        ball.position.addScaledSelf(ball.velocity, dt);
-        let closestRes = null;
-        let closestDist = Infinity;
-        for(let obj of this.objects) {
-            if(obj.type == "ball") {
-                if(obj == ball)
-                    continue;
-                let res = this.getBallCollision(ball, obj as Physics2DBall);
-                if(res) {
-                    let v1 = ball.velocity;
-                    let v2 = obj.velocity;
-                    let vn1 = res.normal.dot(v1);
-                    let vn2 = res.normal.dot(v2);
-                    ball.velocity = v1.addScaled(res.normal, vn2 - vn1);
-                    obj.velocity = v2.addScaled(res.normal, vn1 - vn2);
-                    ball.position.addScaledSelf(res.normal, res.overlap/2);
-                    obj.position.addScaledSelf(res.normal, -res.overlap/2);
-                }
-            } else {
-                let res = this.getBallRectCollision(ball, obj as Physics2DRect);
-                if(res) {
-                    let dist = res.position.dist(ball.position);
-                    if(dist < closestDist) {
-                        closestDist = dist;
-                        closestRes = res;
-                    }
-                }
-            }
-        }
-        if(closestRes) {
-            ball.position = closestRes.position.addScaled(closestRes.normal, ball.radius + 1e-6);
-            ball.velocity.addScaledSelf(closestRes.normal, -closestRes.normal.dot(ball.velocity)*2);
-        }
-    }
-    createRect(): Physics2DRect {
-        let rect = new Physics2DRect();
-        this.objects.push(rect);
-        return rect;
-    }
-    createBall(): Physics2DBall {
-        let ball = new Physics2DBall();
-        this.objects.push(ball);
-        return ball;
-    }
-    getPointRectCollision(p: Vec2, rect: Physics2DRectState) {
-        return (
-            p.x >= rect.position.x - rect.size.x/2
-            && p.y >= rect.position.y - rect.size.y/2
-            && p.x <= rect.position.x + rect.size.x/2
-            && p.y <= rect.position.y + rect.size.y/2
-        );
-    }
-    getBallCollision(ball1: Physics2DBallState, ball2: Physics2DBallState) {
-        let dist = ball1.position.dist(ball2.position)
-        if(dist > ball1.radius + ball2.radius) return null;
-        return {
-            position: ball1.position.addScaled(ball1.position.look(ball2.position), ball1.radius),
-            normal: ball2.position.look(ball1.position),
-            overlap: ball1.radius + ball2.radius - dist,
-        };
-    }
-    getBallRectCollision(ball: Physics2DBallState, rect: Physics2DRectState) {
-        if(this.getPointRectCollision(ball.position, rect)) {
-            let d1 = Math.abs(ball.position.sub(rect.position.addScaled(rect.up, rect.size.y/2)).dot(rect.up));
-            let d2 = Math.abs(ball.position.sub(rect.position.addScaled(rect.up, -rect.size.y/2)).dot(rect.up));
-            let d3 = Math.abs(ball.position.sub(rect.position.addScaled(rect.right, rect.size.x/2)).dot(rect.right));
-            let d4 = Math.abs(ball.position.sub(rect.position.addScaled(rect.right, -rect.size.x/2)).dot(rect.right));
-            let cd = Math.min(d1, d2, d3, d4);
-            if(EMath.isClose(cd, d1)) {
-                return {
-                    position: rect.position.addScaled(rect.right, ball.position.sub(rect.position).dot(rect.right)).addScaled(rect.up, rect.size.y/2),
-                    normal: rect.up,
-                };
-            } else if(EMath.isClose(cd, d2)) {
-                return {
-                    position: rect.position.addScaled(rect.right, ball.position.sub(rect.position).dot(rect.right)).addScaled(rect.up, -rect.size.y/2),
-                    normal: rect.up.neg(),
-                };
-            } else if(EMath.isClose(cd, d3)) {
-                return {
-                    position: rect.position.addScaled(rect.up, ball.position.sub(rect.position).dot(rect.up)).addScaled(rect.right, rect.size.x/2),
-                    normal: rect.right,
-                };
-            } else {
-                return {
-                    position: rect.position.addScaled(rect.up, ball.position.sub(rect.position).dot(rect.up)).addScaled(rect.right, -rect.size.x/2),
-                    normal: rect.right.neg(),
-                };
-            }
-        } else {
-            let dotX = ball.position.sub(rect.position).dot(rect.right);
-            let dotY = ball.position.sub(rect.position).dot(rect.up);
-            dotX = EMath.clamp(dotX, -rect.size.x/2, rect.size.x/2);
-            dotY = EMath.clamp(dotY, -rect.size.y/2, rect.size.y/2);
-            let p = rect.position.addScaled(rect.right, dotX).addScaled(rect.up, dotY);
-            let dist = p.dist(ball.position);
-            if(dist < ball.radius)
-                return {
-                    position: p,
-                    normal: p.look(ball.position),
-                };
-            else
-                return null;
-        }
     }
 }
