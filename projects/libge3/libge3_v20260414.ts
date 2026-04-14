@@ -1546,11 +1546,13 @@ export abstract class Physics2D {
         if(!col.inside)
             return;
         const velAlongNormal = b.velocity.sub(a.velocity).dot(col.normal);
-        const restitution = Math.min(a.restitution, b.restitution);
         const mi = (1/a.mass + 1/b.mass);
-        const impulse = col.normal.rescale(-(1+restitution) * velAlongNormal / mi);
-        a.velocity.addScaledSelf(impulse, -1/a.mass);
-        b.velocity.addScaledSelf(impulse, 1/b.mass);
+        if (velAlongNormal < 0) {
+            const restitution = Math.min(a.restitution, b.restitution);
+            const j = -(1+restitution) * velAlongNormal / mi;
+            a.velocity.addScaledSelf(col.normal, j * -1 / a.mass);
+            b.velocity.addScaledSelf(col.normal, j * 1 / b.mass);
+        }
         const correction = col.normal.rescale(Math.max(-col.distance - 1e-4, 0) / mi * 0.8);
         a.position.addScaledSelf(correction, -1/a.mass);
         b.position.addScaledSelf(correction, 1/b.mass);
@@ -1558,8 +1560,13 @@ export abstract class Physics2D {
     static resolveCircleAnchoredRectCollision(a: any, b: any, col: any) {
         if(!col.inside)
             return;
+        const velAlongNormal = a.velocity.sub(b.velocity).dot(col.normal);
+        if (velAlongNormal < 0) {
+            const restitution = Math.min(a.restitution, b.restitution);
+            const j = -(1+restitution) * velAlongNormal;
+            a.velocity.addScaledSelf(col.normal, j);
+        }
         a.position = col.collision.addScaled(col.normal, a.radius + 1e-6);
-        a.velocity.addScaledSelf(col.normal, -col.normal.dot(a.velocity)*2);
     }
 }
 

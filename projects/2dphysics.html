@@ -1,0 +1,224 @@
+<html>
+<head>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <script type="module">
+        import {WindowResizeObserver, WGL2Shader, Vec2, Color, Physics2D, Mat3, RenderLoop, Keypresses} from "./libge3/libge3_v20260414.js";
+        let canvas = document.createElement("canvas");
+        document.body.appendChild(canvas);
+        const fsresize = new WindowResizeObserver();
+        let gl = canvas.getContext("webgl2");
+        let shader = new WGL2Shader(
+            gl,
+            `#version 300 es
+                in vec2 a_position;
+                uniform mat3 u_rotation;
+                uniform vec2 u_offset;
+                uniform vec2 u_scale;
+                uniform vec2 u_resolution;
+                void main() {
+                    vec3 rotated = u_rotation * vec3(a_position * u_scale, 1);
+                    gl_Position = vec4(rotated.xy / u_resolution + u_offset, 0, 1);
+                }
+            `,
+            `#version 300 es
+                precision highp float;
+                uniform vec3 u_color;
+                out vec4 outColor;
+                void main() {
+                    outColor = vec4(u_color/255., 1);
+                }
+            `,
+        )
+        shader.addAttribute("a_position", "vec2");
+        const uRotation = shader.createUniform("u_rotation", "mat3");
+        const uOffset = shader.createUniform("u_offset", "vec2");
+        const uResolution = shader.createUniform("u_resolution", "vec2");
+        const uScale = shader.createUniform("u_scale", "vec2");
+        const uColor = shader.createUniform("u_color", "vec3");
+        let circleMeshPositions = [];
+        for(let i=0; i<16; i++) {
+            let a1 = Math.PI*2*(i/16);
+            let a2 = Math.PI*2*((i+1)/16);
+            circleMeshPositions.push(0, 0);
+            circleMeshPositions.push(Math.cos(a1), Math.sin(a1));
+            circleMeshPositions.push(Math.cos(a2), Math.sin(a2));
+        }
+        let rectMeshPositions = [-1,-1,1,-1,1,1,-1,-1,-1,1,1,1].map(x => x*0.5);
+        fsresize.resizeEvent.connect((w, h) => {
+            canvas.width = w;
+            canvas.height = h;
+            gl.viewport(0, 0, w, h);
+            uResolution.setValues([w, h]);
+        });
+        let envBalls = [];
+        let envRects = [];
+        function createRect(position, size, rotation) {
+            let rect = {};
+            rect.position = position;
+            rect.size = size;
+            rect.setRotation = (angle) => {
+                rect.rotation = angle;
+                rect.right = Vec2.xAxis().rotate(angle);
+                rect.up = Vec2.yAxis().rotate(angle);
+                rect.rightOffset = rect.right.mulF(rect.size.x/2);
+                rect.upOffset = rect.up.mulF(rect.size.y/2);
+            }
+            rect.setRotation(rotation);
+            rect.shaderObject = shader.createObject();
+            rect.shaderObject.setData("a_position", new Float32Array(rectMeshPositions));
+            rect.rotationMatrix = Mat3.rotate(rect.rotation);
+            rect.color = new Color(0, 0, 0);
+            rect.velocity = Vec2.zero();
+            rect.restitution = 1;
+            rect.hasCollision = true;
+            rect.anchored = true;
+            envRects.push(rect);
+            return rect;
+        }
+        function createBall(position, radius) {
+            let ball = {};
+            ball.position = position;
+            ball.velocity = Vec2.zero();
+            ball.radius = radius;
+            ball.shaderObject = shader.createObject();
+            ball.shaderObject.setData("a_position", new Float32Array(circleMeshPositions));
+            ball.rotationMatrix = Mat3.new();
+            ball.color = new Color("rgb(255, 170, 70)");
+            ball.mass = 1;
+            ball.restitution = 1;
+            ball.hasCollision = true;
+            ball.anchored = false;
+            envBalls.push(ball);
+            return ball;
+        }
+        let bg = createRect(new Vec2(0, 0), new Vec2(10000, 10000), 0);
+        bg.hasCollision = false;
+        bg.color = new Color("rgb(35, 15, 25)");
+        let ground = createRect(new Vec2(0, -800), new Vec2(3200, 400), 0);
+        ground.color = new Color(140, 90, 150);
+        let g2 = createRect(new Vec2(-900, -520), new Vec2(500, 10), 0);
+        g2.color = new Color(140, 90, 150);
+        let g3 = createRect(new Vec2(-900, -562.5), new Vec2(50, 76), 0);
+        g3.restitution = 0;
+        g3.color = new Color(140, 90, 150);
+        let g4 = createRect(new Vec2(-1620, -700), new Vec2(50, 10), 0);
+        g4.restitution = 0;
+        g4.color = new Color("rgb(255, 170, 70)");
+        let g5 = createRect(new Vec2(-1600, -650), new Vec2(10, 100), 0);
+        g5.restitution = 0;
+        g5.color = new Color("rgb(255, 170, 70)");
+        new RenderLoop(dt => {
+            let lastP = g3.position.clone();
+            g3.position.x = Math.sin(performance.now()/1000)*2000;
+            g3.velocity = g3.position.sub(lastP).mulF(1/dt);
+        }).start();
+        for(let i=0; i<5; i++) {
+            createBall(new Vec2(Math.random()*10-5, 0), 18);
+        }
+        let rings = [];
+        function createRing(
+            radius=150,
+            speed=1,
+            angle=0,
+        ) {
+            let rects = [];
+            for(let i=0; i<20; i++) {
+                let a = Math.PI*2*(i/48);
+                let rect = createRect(
+                    new Vec2(Math.cos(a)*radius, Math.sin(a)*radius),
+                    new Vec2(2*Math.PI*radius/48 + 3, 10),
+                    a + Math.PI/2
+                );
+                rect.color = new Color("rgb(140, 90, 150)").lerpRgba(new Color("rgb(255, 170, 70)"), 1-radius/500);
+                rect.color = rect.color.lerpRgba(new Color("rgb(255, 255, 255)"), Math.floor(i/4)%2==0?0.5:0);
+                rects.push(rect);
+            }
+            let spin = (dt) => {
+                for(let i=0; i<20; i++) {
+                    let rect = rects[i];
+                    let a = Math.PI*2*(i/48) + ((performance.now())/1000 + 5)*speed;
+                    let lastP = rect.position;
+                    rect.position = new Vec2(Math.cos(a)*radius, Math.sin(a)*radius);
+                    rect.setRotation(a + Math.PI/2);
+                    rect.rotationMatrix = Mat3.rotate(rect.rotation);
+                    rect.velocity = rect.position.sub(lastP).mulF(1/dt);
+                }
+            }
+            rings.push({rects, spin});
+        }
+        for(let i=0; i<5; i++) {
+            createRing(150 + 70 * i**1.2, 0.5 + 0.1 * i);
+        }
+        let myBall = createBall(Vec2.zero(), 18);
+        myBall.color = new Color("rgb(140, 90, 150)").lerpRgba(new Color("rgb(255, 170, 70)"), 0.5);
+        myBall.color.sat += 20;
+        new RenderLoop(dt => {
+            console.log("start")
+            // dt = dt * 0.1
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            for(let ring of rings) {
+                ring.spin(dt);
+            }
+            if(Keypresses.keyPressed["w"]) {
+                myBall.velocity.y += 200 * dt;
+            }
+            if(Keypresses.keyPressed["s"]) {
+                myBall.velocity.y -= 500 * dt;
+            }
+            if(Keypresses.keyPressed["a"]) {
+                myBall.velocity.x -= 1000 * dt;
+            }
+            if(Keypresses.keyPressed["d"]) {
+                myBall.velocity.x += 1000 * dt;
+            }
+            for(let rect of envRects) {
+                uRotation.setValues(rect.rotationMatrix);
+                uColor.setValues([rect.color.r, rect.color.g, rect.color.b]);
+                uOffset.setValues([rect.position.x/canvas.width, rect.position.y/canvas.height]);
+                uScale.setValues([rect.size.x, rect.size.y]);
+                rect.shaderObject.drawTriangles();
+            }
+            for(let ball of envBalls) {
+                ball.velocity.y -= 500 * dt;
+                ball.position.addScaledSelf(ball.velocity, dt);
+                for(let i=0; i<3; i++) {
+                    for(let b2 of envBalls) {
+                        if(!b2.hasCollision) continue;
+                        if(b2 == ball) continue;
+                        let col = Physics2D.getCircleCircleCollision(ball.position, ball.radius, b2.position, b2.radius);
+                        Physics2D.resolveCircleCircleCollision(ball, b2, col);
+                    }
+                    for(let rect of envRects) {
+                        if(!rect.hasCollision) continue;
+                        let col = Physics2D.getCircleRectCollision(ball.position, ball.radius, rect.position, rect.rightOffset, rect.upOffset);
+                        Physics2D.resolveCircleAnchoredRectCollision(ball, rect, col);
+                        if(ball == myBall && col.inside && col.normal.y > 0.7 && Keypresses.keyPressed["w"]) {
+                            ball.velocity.y += 350;
+                        }
+                    }
+                }
+                uRotation.setValues(ball.rotationMatrix);
+                uColor.setValues([ball.color.r, ball.color.g, ball.color.b]);
+                uOffset.setValues([ball.position.x/canvas.width, ball.position.y/canvas.height]);
+                uScale.setValues([ball.radius, ball.radius]);
+                if(
+                    Math.abs(ball.position.x) > window.innerWidth
+                    || Math.abs(ball.position.y) > window.innerHeight
+                ) {
+                    ball.position = Vec2.zero();
+                    // ball.velocity = Vec2.zero();
+                }
+                ball.shaderObject.drawTriangles();
+            }
+        }).start();
+    </script>
+</body>
+</html>
