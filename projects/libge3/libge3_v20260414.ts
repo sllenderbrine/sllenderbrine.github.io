@@ -1517,8 +1517,8 @@ export abstract class Physics2D {
     }
     static getCircleCircleCollision(pointA: Vec2, radiusA: number, pointB: Vec2, radiusB: number) {
         let dist = pointA.dist(pointB) - radiusA - radiusB;
-        let collision = pointA.addScaled(pointA.look(pointB), radiusA);
         let normal = pointA.look(pointB);
+        let collision = pointA.addScaled(normal, radiusA);
         return {
             inside: dist <= 0,
             collision,
@@ -1545,12 +1545,15 @@ export abstract class Physics2D {
     static resolveCircleCircleCollision(a: any, b: any, col: any) {
         if(!col.inside)
             return;
-        let vn1 = col.normal.dot(a.velocity);
-        let vn2 = col.normal.dot(b.velocity);
-        a.velocity.addScaledSelf(col.normal, vn1 - vn2);
-        b.velocity.addScaledSelf(col.normal, vn2 - vn1);
-        a.position.addScaledSelf(col.normal, -col.distance/2);
-        b.position.addScaledSelf(col.normal, col.distance/2);
+        const velAlongNormal = b.velocity.sub(a.velocity).dot(col.normal);
+        const restitution = Math.min(a.restitution, b.restitution);
+        const mi = (1/a.mass + 1/b.mass);
+        const impulse = col.normal.rescale(-(1+restitution) * velAlongNormal / mi);
+        a.velocity.addScaledSelf(impulse, -1/a.mass);
+        b.velocity.addScaledSelf(impulse, 1/b.mass);
+        const correction = col.normal.rescale(Math.max(-col.distance - 1e-4, 0) / mi * 0.8);
+        a.position.addScaledSelf(correction, -1/a.mass);
+        b.position.addScaledSelf(correction, 1/b.mass);
     }
     static resolveCircleAnchoredRectCollision(a: any, b: any, col: any) {
         if(!col.inside)
