@@ -2638,8 +2638,8 @@ window.addEventListener("mouseup", e => {
 
 export class PointerLock {
     connections = new ConnectionGroup();
-    pointerLockChangeEvent = new Signal();
-    lockedMouseMoveEvent = new Signal();
+    pointerLockChangeEvent: Signal<[isLocked: boolean]> = new Signal();
+    lockedMouseMoveEvent: Signal<[dx: number, dy: number]> = new Signal();
     isEnabled = false;
     constructor() {
         this.connections.add(new HtmlConnection(window, "mousedown", (e: MouseEvent) => {
