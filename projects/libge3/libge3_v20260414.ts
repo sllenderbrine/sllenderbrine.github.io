@@ -2728,3 +2728,22 @@ export class RenderLoop {
         return this;
     }
 }
+
+
+//////////////////////
+//  UI BUTTON CLASS //
+//////////////////////
+export class UiButton {
+    containerEl: HTMLDivElement;
+    labelEl?: HTMLDivElement;
+    buttonEl?: HTMLButtonElement;
+    clipEl?: HTMLDivElement;
+    canvas?: HTMLCanvasElement;
+    gl?: WebGL2RenderingContext;
+    backgroundShader?: WGL2Shader;
+    textShader?: WGL2Shader;
+    textTexture?: WGL2Texture2D;
+    constructor() {
+        this.containerEl = document.createElement("div");
+    }
+}
