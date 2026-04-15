@@ -1653,6 +1653,87 @@ export abstract class Physics3D {
 }
 
 
+export class PhysicsLab2D {
+    objectAddedEvent: Signal<[obj: any]> = new Signal();
+    objects: any = [];
+    constructor() {
+
+    }
+    createRect(position: Vec2, size: Vec2, rotation: number) {
+        let rect: any = {position, size};
+        rect.lastPosition = position.clone();
+        rect.setRotation = (angle: number) => {
+            rect.rotation = angle;
+            rect.right = Vec2.xAxis().rotate(angle);
+            rect.up = Vec2.yAxis().rotate(angle);
+            rect.rightOffset = rect.right.mulF(rect.size.x/2);
+            rect.upOffset = rect.up.mulF(rect.size.y/2);
+            rect.rotationMatrix = Mat3.rotate(rect.rotation);
+        }
+        rect.setRotation(rotation);
+        rect.rotationMatrix = Mat3.rotate(rect.rotation);
+        rect.velocity = Vec2.zero();
+        rect.restitution = 1;
+        rect.gravity = 500;
+        rect.hasCollision = true;
+        rect.anchored = true;
+        rect.type = "rect";
+        rect.collision = null;
+        this.objects.push(rect);
+        this.objectAddedEvent.fire(rect);
+        return rect;
+    }
+    createBall(position: Vec2, radius: number) {
+        let ball: any = {position, radius};
+        ball.lastPosition = position.clone();
+        ball.velocity = Vec2.zero();
+        ball.rotationMatrix = Mat3.new();
+        ball.mass = 1;
+        ball.restitution = 1;
+        ball.gravity = 500;
+        ball.hasCollision = true;
+        ball.anchored = false;
+        ball.type = "ball";
+        ball.collision = null;
+        this.objects.push(ball);
+        this.objectAddedEvent.fire(ball);
+        return ball;
+    }
+    update(dt: number) {
+        for(let obj of this.objects) {
+            if(!obj.anchored) continue;
+            obj.velocity = obj.position.sub(obj.lastPosition).mulF(1/dt);
+            obj.lastPosition.setC(obj.position.x, obj.position.y);
+        }
+        for(let i=0; i<3; i++) {
+            for(let obj of this.objects) {
+                if(i==0) obj.collision = null;
+                if(obj.anchored) continue;
+                if(i==0) {
+                    obj.velocity.y -= obj.gravity * dt;
+                    obj.position.addScaledSelf(obj.velocity, dt);
+                }
+                if(obj.type == "ball") {
+                    for(let obj2 of this.objects) {
+                        if(!obj2.hasCollision) continue;
+                        if(obj2 == obj) continue;
+                        if(obj2.type == "ball") {
+                            let col = Physics2D.getCircleCircleCollision(obj.position, obj.radius, obj2.position, obj2.radius);
+                            Physics2D.resolveCircleCircleCollision(obj, obj2, col);
+                            if(col.inside) obj.collision = col;
+                        } else {
+                            let col = Physics2D.getCircleRectCollision(obj.position, obj.radius, obj2.position, obj2.rightOffset, obj2.upOffset);
+                            Physics2D.resolveCircleAnchoredRectCollision(obj, obj2, col);
+                            if(col.inside) obj.collision = col;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 /////////////////////
 //  EVENT CLASSES  //
 /////////////////////
@@ -2571,10 +2652,11 @@ export class WindowResizeObserver {
 //  RENDER LOOP CLASS  //
 /////////////////////////
 export class RenderLoop {
+    renderSteppedEvent: Signal<[dt: number]> = new Signal();
     runIndex = 0;
     isRunning = false;
     constructor(public callback: (dt: number) => void) {
-
+        
     }
     stop() {
         if(!this.isRunning)
@@ -2596,6 +2678,7 @@ export class RenderLoop {
             let now = performance.now()/1000;
             let dt = now - frameTime;
             frameTime = now;
+            this.renderSteppedEvent.fire(dt);
             this.callback(dt);
             requestAnimationFrame(render);
         }

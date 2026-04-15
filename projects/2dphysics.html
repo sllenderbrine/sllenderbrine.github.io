@@ -11,7 +11,7 @@
 </head>
 <body>
     <script type="module">
-        import {WindowResizeObserver, WGL2Shader, Vec2, Color, Physics2D, Mat3, RenderLoop, Keypresses, EMath} from "./libge3/libge3_v20260414.js";
+        import {WindowResizeObserver, WGL2Shader, Vec2, Color, Mat3, RenderLoop, Keypresses, EMath, PhysicsLab2D} from "./libge3/libge3_v20260414.js";
         let canvas = document.createElement("canvas");
         canvas.width = 1912;
         canvas.height = 914;
@@ -62,72 +62,27 @@
             canvas.style.width = `${w}px`;
             canvas.style.height = `${h}px`;
         });
-        let envBalls = [];
-        let envRects = [];
+        let env = new PhysicsLab2D();
         function createRect(position, size, rotation) {
-            let rect = {};
-            rect.position = position;
-            rect.size = size;
-            rect.setRotation = (angle) => {
-                rect.rotation = angle;
-                rect.right = Vec2.xAxis().rotate(angle);
-                rect.up = Vec2.yAxis().rotate(angle);
-                rect.rightOffset = rect.right.mulF(rect.size.x/2);
-                rect.upOffset = rect.up.mulF(rect.size.y/2);
-            }
-            rect.setRotation(rotation);
+            let rect = env.createRect(position, size, rotation);
             rect.shaderObject = shader.createObject();
             rect.shaderObject.setData("a_position", new Float32Array(rectMeshPositions));
-            rect.rotationMatrix = Mat3.rotate(rect.rotation);
             rect.color = new Color(0, 0, 0);
-            rect.velocity = Vec2.zero();
-            rect.restitution = 1;
-            rect.hasCollision = true;
-            rect.anchored = true;
-            envRects.push(rect);
             return rect;
         }
         function createBall(position, radius) {
-            let ball = {};
-            ball.position = position;
-            ball.velocity = Vec2.zero();
-            ball.radius = radius;
+            let ball = env.createBall(position, radius);
             ball.shaderObject = shader.createObject();
             ball.shaderObject.setData("a_position", new Float32Array(circleMeshPositions));
-            ball.rotationMatrix = Mat3.new();
             ball.color = new Color("rgb(255, 170, 70)");
-            ball.mass = 1;
-            ball.restitution = 1;
-            ball.hasCollision = true;
-            ball.anchored = false;
-            envBalls.push(ball);
+            render.renderSteppedEvent.connect(dt => {
+                if(Math.abs(ball.position.x) > 3824 || ball.position.y > 1828 || ball.position.y < -914) {
+                    ball.position = Vec2.zero();
+                }
+            });
             return ball;
         }
-        let bg = createRect(new Vec2(0, 0), new Vec2(10000, 10000), 0);
-        bg.hasCollision = false;
-        bg.color = new Color("rgb(35, 15, 25)");
-        let ground = createRect(new Vec2(0, -800), new Vec2(3200, 400), 0);
-        ground.color = new Color(140, 90, 150);
-        let g2 = createRect(new Vec2(-900, -520), new Vec2(500, 10), 0);
-        g2.color = new Color(140, 90, 150);
-        let g3 = createRect(new Vec2(-900, -562.5), new Vec2(50, 76), 0);
-        g3.restitution = 0;
-        g3.color = new Color(140, 90, 150);
-        let g4 = createRect(new Vec2(-1620, -700), new Vec2(50, 10), 0);
-        g4.restitution = 0;
-        g4.color = new Color("rgb(255, 170, 70)");
-        let g5 = createRect(new Vec2(-1600, -650), new Vec2(10, 100), 0);
-        g5.restitution = 0;
-        g5.color = new Color("rgb(255, 170, 70)");
-        new RenderLoop(dt => {
-            let lastP = g3.position.clone();
-            g3.position.x = Math.sin(performance.now()/1000)*2000;
-            g3.velocity = g3.position.sub(lastP).mulF(1/dt);
-        }).start();
-        for(let i=0; i<5; i++) {
-            createBall(new Vec2(Math.random()*10-5, 0), 18);
-        }
-        let rings = [];
+        let render = new RenderLoop(dt => { });
         function createRing(
             radius=150,
             speed=1,
@@ -138,90 +93,69 @@
                 let a = Math.PI*2*(i/48);
                 let rect = createRect(
                     new Vec2(Math.cos(a)*radius, Math.sin(a)*radius),
-                    new Vec2(2*Math.PI*radius/48 + 3, 10),
+                    new Vec2(2*Math.PI*radius/48 + 3, 15),
                     a + Math.PI/2
                 );
                 rect.color = new Color("rgb(140, 90, 150)").lerpRgba(new Color("rgb(255, 170, 70)"), 1-radius/500);
-                rect.color = rect.color.lerpRgba(new Color("rgb(255, 255, 255)"), Math.floor(i/4)%2==0?0.5:0);
+                rect.color = rect.color.lerpRgba(new Color("rgb(255, 255, 255)"), Math.sin(i*2*Math.PI/4)*0.25+0.25);
                 rects.push(rect);
             }
-            let spin = (dt) => {
-                for(let i=0; i<20; i++) {
+            render.renderSteppedEvent.connect(dt => {
+                for(let i=0; i<rects.length; i++) {
                     let rect = rects[i];
                     let a = Math.PI*2*(i/48) + ((performance.now())/1000 + 5)*speed;
-                    let lastP = rect.position;
                     rect.position = new Vec2(Math.cos(a)*radius, Math.sin(a)*radius);
                     rect.setRotation(a + Math.PI/2);
-                    rect.rotationMatrix = Mat3.rotate(rect.rotation);
-                    rect.velocity = rect.position.sub(lastP).mulF(1/dt);
                 }
-            }
-            rings.push({rects, spin});
+            });
+            return rects;
+        }
+        let bg = createRect(new Vec2(0, 0), new Vec2(10000, 10000), 0);
+        bg.hasCollision = false;
+        bg.color = new Color("rgb(35, 15, 25)");
+        for(let i=0; i<5; i++) {
+            let ground = createRect(new Vec2(0, -600 + i * -60), new Vec2(2500 + i * 200, 60), 0);
+            ground.color = new Color("rgb(140, 90, 150)").lerpRgba(new Color("rgb(255, 170, 70)"), i/10);
+            ground.color.sat += 20 - i/5*20;
+            ground.color.val += i/5*60;
+            ground.restitution = 1 - i/5;
+        }
+        let sweeper = createRect(new Vec2(-900, -505), new Vec2(50, 45), 0);
+        sweeper.restitution = 0;
+        sweeper.color = new Color("rgb(140, 90, 150)");
+        render.renderSteppedEvent.connect(dt => {
+            sweeper.position.x = Math.sin(performance.now()/4000)*5000;
+        });
+        for(let i=0; i<5; i++) {
+            createBall(new Vec2(Math.random()*10-5, 0), 18);
         }
         for(let i=0; i<5; i++) {
-            createRing(150 + 70 * i**1.2, 0.5 + 0.1 * i);
+            createRing(100 + 80 * i**1.1, 0.5 + 0.1 * i);
         }
         let myBall = createBall(Vec2.zero(), 18);
         myBall.color = new Color("rgb(140, 90, 150)").lerpRgba(new Color("rgb(255, 170, 70)"), 0.5);
         myBall.color.sat += 20;
-        new RenderLoop(dt => {
+        render.callback = dt => {
             dt = EMath.clamp(dt, 0, 0.5);
+            env.update(dt);
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-            for(let ring of rings) {
-                ring.spin(dt);
+            if(Keypresses.keyPressed["w"]) myBall.velocity.y += 200 * dt;
+            if(Keypresses.keyPressed["s"]) myBall.velocity.y -= 500 * dt;
+            if(Keypresses.keyPressed["a"]) myBall.velocity.x -= 1000 * dt;
+            if(Keypresses.keyPressed["d"]) myBall.velocity.x += 1000 * dt;
+            if(myBall.collision && myBall.collision.inside && myBall.collision.normal.y > 0.7 && Keypresses.keyPressed["w"]) {
+                myBall.velocity.y += 350 / Math.abs(myBall.velocity.y/50 + 1);
             }
-            if(Keypresses.keyPressed["w"]) {
-                myBall.velocity.y += 200 * dt;
+            for(let obj of env.objects) {
+                uRotation.setValues(obj.rotationMatrix);
+                uColor.setValues([obj.color.r, obj.color.g, obj.color.b]);
+                uOffset.setValues([obj.position.x/canvas.width, obj.position.y/canvas.height]);
+                if(obj.type == "rect") uScale.setValues([obj.size.x, obj.size.y]);
+                else uScale.setValues([obj.radius, obj.radius]);
+                obj.shaderObject.drawTriangles();
             }
-            if(Keypresses.keyPressed["s"]) {
-                myBall.velocity.y -= 500 * dt;
-            }
-            if(Keypresses.keyPressed["a"]) {
-                myBall.velocity.x -= 1000 * dt;
-            }
-            if(Keypresses.keyPressed["d"]) {
-                myBall.velocity.x += 1000 * dt;
-            }
-            for(let rect of envRects) {
-                uRotation.setValues(rect.rotationMatrix);
-                uColor.setValues([rect.color.r, rect.color.g, rect.color.b]);
-                uOffset.setValues([rect.position.x/canvas.width, rect.position.y/canvas.height]);
-                uScale.setValues([rect.size.x, rect.size.y]);
-                rect.shaderObject.drawTriangles();
-            }
-            for(let ball of envBalls) {
-                ball.velocity.y -= 500 * dt;
-                ball.position.addScaledSelf(ball.velocity, dt);
-                for(let i=0; i<3; i++) {
-                    for(let b2 of envBalls) {
-                        if(!b2.hasCollision) continue;
-                        if(b2 == ball) continue;
-                        let col = Physics2D.getCircleCircleCollision(ball.position, ball.radius, b2.position, b2.radius);
-                        Physics2D.resolveCircleCircleCollision(ball, b2, col);
-                    }
-                    for(let rect of envRects) {
-                        if(!rect.hasCollision) continue;
-                        let col = Physics2D.getCircleRectCollision(ball.position, ball.radius, rect.position, rect.rightOffset, rect.upOffset);
-                        Physics2D.resolveCircleAnchoredRectCollision(ball, rect, col);
-                        if(ball == myBall && col.inside && col.normal.y > 0.7 && Keypresses.keyPressed["w"]) {
-                            ball.velocity.y += 350 / Math.abs(ball.velocity.y/50 + 1);
-                        }
-                    }
-                }
-                uRotation.setValues(ball.rotationMatrix);
-                uColor.setValues([ball.color.r, ball.color.g, ball.color.b]);
-                uOffset.setValues([ball.position.x/canvas.width, ball.position.y/canvas.height]);
-                uScale.setValues([ball.radius, ball.radius]);
-                if(
-                    Math.abs(ball.position.x) > 1912
-                    || Math.abs(ball.position.y) > 914
-                ) {
-                    ball.position = Vec2.zero();
-                    // ball.velocity = Vec2.zero();
-                }
-                ball.shaderObject.drawTriangles();
-            }
-        }).start();
+        };
+        render.start();
     </script>
 </body>
 </html>
