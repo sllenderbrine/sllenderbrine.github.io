@@ -1701,13 +1701,13 @@ export class PhysicsLab2D {
     }
     update(dt: number) {
         for(let obj of this.objects) {
+            obj.collision = null;
             if(!obj.anchored) continue;
             obj.velocity = obj.position.sub(obj.lastPosition).mulF(1/dt);
             obj.lastPosition.setC(obj.position.x, obj.position.y);
         }
         for(let i=0; i<3; i++) {
             for(let obj of this.objects) {
-                if(i==0) obj.collision = null;
                 if(obj.anchored) continue;
                 if(i==0) {
                     obj.velocity.y -= obj.gravity * dt;
@@ -1720,11 +1720,17 @@ export class PhysicsLab2D {
                         if(obj2.type == "ball") {
                             let col = Physics2D.getCircleCircleCollision(obj.position, obj.radius, obj2.position, obj2.radius);
                             Physics2D.resolveCircleCircleCollision(obj, obj2, col);
-                            if(col.inside) obj.collision = col;
+                            if(col.inside) {
+                                obj.collision = col;
+                                obj2.collision = col;
+                            }
                         } else {
                             let col = Physics2D.getCircleRectCollision(obj.position, obj.radius, obj2.position, obj2.rightOffset, obj2.upOffset);
                             Physics2D.resolveCircleAnchoredRectCollision(obj, obj2, col);
-                            if(col.inside) obj.collision = col;
+                            if(col.inside) {
+                                obj.collision = col;
+                                obj2.collision = col;
+                            }
                         }
                     }
                 }
@@ -2730,6 +2736,229 @@ export class RenderLoop {
 }
 
 
+/////////////////////
+//  ICON GENERATOR //
+/////////////////////
+export class Polygon2D {
+    vertices: number[] = [];
+    constructor() {
+
+    }
+    getCenterOfMass(): Vec2 {
+        let c = Vec2.zero();
+        for(let i=0; i<this.vertices.length; i+=2)
+            c.addSelfC(this.vertices[i]!, this.vertices[i+1]!);
+        if(this.vertices.length > 0) c.divSelfF(this.vertices.length/2);
+        return c;
+    }
+    rotateAround(x: number, y: number, a: number): this {
+        for(let i=0; i<this.vertices.length; i+=2) {
+            let v = new Vec2(this.vertices[i]!, this.vertices[i+1]!);
+            v.x -= x;
+            v.y -= y;
+            v.rotateSelf(a);
+            v.x += x;
+            v.y += y;
+            this.vertices[i] = v.x;
+            this.vertices[i+1] = v.y;
+        }
+        return this;
+    }
+    scaleFrom(x: number, y: number, s: number): this {
+        for(let i=0; i<this.vertices.length; i+=2) {
+            let v = new Vec2(this.vertices[i]!, this.vertices[i+1]!);
+            v.x -= x;
+            v.y -= y;
+            v.mulSelfF(s);
+            v.x += x;
+            v.y += y;
+            this.vertices[i] = v.x;
+            this.vertices[i+1] = v.y;
+        }
+        return this;
+    }
+    translate(x: number, y: number): this {
+        for(let i=0; i<this.vertices.length; i+=2) {
+            let v = new Vec2(this.vertices[i]!, this.vertices[i+1]!);
+            v.x += x;
+            v.y += y;
+            this.vertices[i] = v.x;
+            this.vertices[i+1] = v.y;
+        }
+        return this;
+    }
+    fill(ctx: CanvasRenderingContext2D, color: string): this {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(this.vertices[0]! * (ctx.canvas.width - 1), this.vertices[1]! * (ctx.canvas.height - 1));
+        for(let i=2; i<this.vertices.length; i+=2) {
+            ctx.lineTo(this.vertices[i]! * (ctx.canvas.width - 1), this.vertices[i+1]! * (ctx.canvas.height - 1));
+        }
+        ctx.closePath();
+        ctx.fill();
+        return this;
+    }
+    bevelVertex(index: number, amount: number) {
+        let prevI = EMath.pmod(index - 2, this.vertices.length);
+        let nextI = EMath.pmod(index + 2, this.vertices.length);
+        let original = new Vec2(this.vertices[index]!, this.vertices[index+1]!);
+        let dir1 = original.look(new Vec2(this.vertices[prevI]!, this.vertices[prevI+1]!));
+        let dir2 = original.look(new Vec2(this.vertices[nextI]!, this.vertices[nextI+1]!));
+        let v1 = original.add(dir1.mulF(amount));
+        let v2 = original.add(dir2.mulF(amount));
+        this.vertices[index] = v1.x;
+        this.vertices[index+1] = v1.y;
+        this.vertices.splice(index+2, 0, v2.y);
+        this.vertices.splice(index+2, 0, v2.x);
+        return this;
+    }
+}
+
+export class IconGenerationContext2D {
+    layers: {[key: string]: CanvasRenderingContext2D} = {};
+    selectedLayer!: CanvasRenderingContext2D;
+    constructor(public ctx: CanvasRenderingContext2D) {
+        this.setLayer("0");
+    }
+    createPoly(vertices: number[]) {
+        let poly = new Polygon2D();
+        poly.vertices = vertices;
+        return poly;
+    }
+    createRect(x: number, y: number, w: number, h: number) {
+        const x0 = x - w/2;
+        const x1 = x + w/2;
+        const y0 = y - h/2;
+        const y1 = y + h/2;
+        return this.createPoly([x0,y0, x1,y0, x1,y1, x0,y1]);
+    }
+    createCircle(x: number, y: number, r: number, arc: number = Math.PI * 2, step = Math.PI / 8) {
+        let vertices: number[] = [];
+        vertices.push(x, y);
+        for(let i=0; i<arc; i+=step)
+            vertices.push(...new Vec2(r, 0).rotateSelf(i).addSelf(new Vec2(x, y)).toArray());
+        vertices.push(...new Vec2(r, 0).rotateSelf(arc).addSelf(new Vec2(x, y)).toArray());
+        return this.createPoly(vertices);
+    }
+    convertValueToTransparency(): this {
+        const ctx = this.selectedLayer;
+        let data = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
+        for(let i=0; i<data.data.length; i+=4) {
+            let v = Math.floor((data.data[i]! + data.data[i+1]! + data.data[i+2]!) / 3);
+            data.data[i] = 255;
+            data.data[i+1] = 255;
+            data.data[i+2] = 255;
+            data.data[i+3] = v;
+        }
+        this.selectedLayer.putImageData(data, 0, 0);
+        return this;
+    }
+    map(callback: (x: number, y: number, getColor: (x: number, y: number) => Color) => Color): this {
+        const ctx = this.selectedLayer;
+        let data = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
+        let newData = ctx.createImageData(ctx.canvas.width, ctx.canvas.height);
+        const getColor = (x: number, y: number) => {
+            const i = (y * ctx.canvas.width + x) * 4;
+            if(i < 0 || i >= data.data.length)
+                return new Color(0, 0, 0, 0);
+            return new Color(data.data[i]!, data.data[i+1]!, data.data[i+2]!, data.data[i+3]!/255*100);
+        }
+        for(let y=0; y<ctx.canvas.height; y++) {
+            for(let x=0; x<ctx.canvas.width; x++) {
+                const i = (y * ctx.canvas.width + x) * 4;
+                let color = callback(x, y, getColor);
+                newData.data[i] = Math.floor(color.r);
+                newData.data[i+1] = Math.floor(color.g);
+                newData.data[i+2] = Math.floor(color.b);
+                newData.data[i+3] = Math.floor(color.a/100*255);
+            }
+        }
+        ctx.putImageData(newData, 0, 0);
+        return this;
+    }
+    mirrorX(): this {
+        return this.map((x, y, getColor) => getColor(this.ctx.canvas.width - 1 - x, y));
+    }
+    mirrorY(): this {
+        return this.map((x, y, getColor) => getColor(x, this.ctx.canvas.height - 1 - y));
+    }
+    setLayer(name: string): this {
+        let layer = this.layers[name];
+        if(layer == null) {
+            layer = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!;
+            layer.canvas.width = this.ctx.canvas.width;
+            layer.canvas.height = this.ctx.canvas.height;
+            this.layers[name] = layer;
+        }
+        this.selectedLayer = layer;
+        return this;
+    }
+    flatten(): this {
+        const ctx = this.ctx;
+        let newData = ctx.createImageData(ctx.canvas.width, ctx.canvas.height);
+        let datas = [];
+        for(const name in this.layers) {
+            let layer = this.layers[name]!;
+            let layerData = layer.getImageData(0, 0, layer.canvas.width, layer.canvas.height);
+            datas.push(layerData);
+        }
+        for(let y=0; y<ctx.canvas.height; y++) {
+            for(let x=0; x<ctx.canvas.width; x++) {
+                const i = (y * ctx.canvas.width + x) * 4;
+                for(let data of datas) {
+                    let blend = data.data[i+3]!/255;
+                    newData.data[i] = Math.floor(EMath.lerp(newData.data[i]!,   data.data[i]!,   blend));
+                    newData.data[i+1] = Math.floor(EMath.lerp(newData.data[i+1]!, data.data[i+1]!, blend));
+                    newData.data[i+2] = Math.floor(EMath.lerp(newData.data[i+2]!, data.data[i+2]!, blend));
+                    newData.data[i+3] = Math.floor(EMath.lerp(newData.data[i+3]!, 255, blend));
+                }
+            }
+        }
+        ctx.putImageData(newData, 0, 0);
+        for(const name in this.layers) {
+            let layer = this.layers[name]!;
+            layer.canvas.remove();
+        }
+        this.layers = {};
+        this.setLayer("0");
+        this.selectedLayer.drawImage(this.ctx.canvas, 0, 0);
+        return this;
+    }
+}
+
+export async function generateIcon2D(width: number, height: number, callback: (ctx: IconGenerationContext2D) => void) {
+    let canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    let ctx = new IconGenerationContext2D(canvas.getContext("2d", { willReadFrequently: true })!);
+    callback(ctx);
+    ctx.flatten();
+    let url = await new Promise<string>(res => {
+        canvas.toBlob(blob => {
+            if(!blob)
+                return;
+            const url = URL.createObjectURL(blob);
+            res(url);
+        }, "image/png");
+    })
+    canvas.remove();
+    return url;
+}
+
+
+////////////////////////
+//  UI DROPDOWN CLASS //
+////////////////////////
+export class UiContextMenu {
+    position: Vec2;
+    containerEl: HTMLDivElement;
+    constructor(x: number, y: number) {
+        this.position = new Vec2(x, y);
+        this.containerEl = document.createElement("div");
+    }
+}
+
+
 //////////////////////
 //  UI BUTTON CLASS //
 //////////////////////
@@ -2743,7 +2972,56 @@ export class UiButton {
     backgroundShader?: WGL2Shader;
     textShader?: WGL2Shader;
     textTexture?: WGL2Texture2D;
+    backgroundColor = new Color("rgb(255, 255, 255)");
+    hoverColor = new Color("rgb(199, 199, 199)");
+    isHovering = false;
     constructor() {
         this.containerEl = document.createElement("div");
+        document.body.appendChild(this.containerEl);
+        this.containerEl.style = `
+            position: relative;
+            width: fit-content;
+            height: fit-content;
+            background-color: white;
+            border-radius: 4px;
+            border: 1px solid black;
+        `;
+        this.buttonEl = document.createElement("button");
+        this.containerEl.appendChild(this.buttonEl);
+        this.buttonEl.style = `
+            padding: 0;
+            margin: 0;
+            border: none;
+            background-color: transparent;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            left: 0px;
+            top: 0px;
+            cursor: pointer;
+        `;
+        this.labelEl = document.createElement("div");
+        this.containerEl.appendChild(this.labelEl);
+        this.labelEl.style = `
+            color: black;
+            font-family: Arial;
+            font-size: 14px;
+            width: fit-content;
+            height: fit-content;
+            padding: 4px 8px;
+            pointer-events: none;
+        `;
+        this.setText("button");
+        this.setDefaultBackgroundColor(new Color("rgb(255, 255, 255)"));
+        this.setHoverBackgroundColor(new Color("rgb(200, 200, 200)"));
+    }
+    setText(text: string) {
+        this.labelEl!.textContent = text;
+    }
+    setDefaultBackgroundColor(color: Color) {
+        this.backgroundColor = color;
+    }
+    setHoverBackgroundColor(color: Color) {
+        this.hoverColor = color;
     }
 }

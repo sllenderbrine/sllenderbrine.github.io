@@ -1,4 +1,4 @@
-import { Camera3D, EMath, Keypresses, Noise, PointerLock, RenderLoop, Vec2, Vec3, WGL2Shader } from "./libge3/libge3_v20260414.js";
+import { Camera3D, EMath, Keypresses, Noise, PointerLock, RenderLoop, UiButton, Vec2, Vec3, WGL2Shader } from "../../libge3/libge3_v20260414.js";
 let camera = new Camera3D(new Vec3(42, 28, 42));
 camera.lookAt(Vec3.fill(16));
 let voxels = new Uint32Array(32*32*32);
