@@ -1,4 +1,4 @@
-import {WindowResizeObserver, WGL2Shader, Vec2, Color, Mat3, RenderLoop, Keypresses, EMath, PhysicsLab2D} from "../../libge3/libge3_v20260414.js";
+import {WindowResizeObserver, WGL2Shader, Vec2, Color, Mat3, RenderLoop, Keypresses, EMath, PhysicsLab2D} from "../../libge3/libge3_v20260416.js";
 
 let audioContext = new AudioContext();
 export class SoundEffect {

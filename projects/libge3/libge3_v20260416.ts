@@ -1,6 +1,9 @@
 // 3D/2D JS Game Engine Library
 // https://github.com/sllenderbrine
 
+//  DELAY UTILITY  //
+export const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
 ///////////////////
 //  EMATH CLASS  //
 ///////////////////
@@ -2739,78 +2742,129 @@ export class RenderLoop {
 /////////////////////
 //  ICON GENERATOR //
 /////////////////////
-export class Polygon2D {
-    vertices: number[] = [];
+export class IconPolygon2D {
+    positions: number[] = [];
     constructor() {
 
     }
+    clone(): IconPolygon2D {
+        let poly = new IconPolygon2D();
+        poly.positions.push(...this.positions);
+        return poly;
+    }
     getCenterOfMass(): Vec2 {
         let c = Vec2.zero();
-        for(let i=0; i<this.vertices.length; i+=2)
-            c.addSelfC(this.vertices[i]!, this.vertices[i+1]!);
-        if(this.vertices.length > 0) c.divSelfF(this.vertices.length/2);
+        for(let i=0; i<this.positions.length; i+=2)
+            c.addSelfC(this.positions[i]!, this.positions[i+1]!);
+        if(this.positions.length > 0) c.divSelfF(this.positions.length/2);
         return c;
     }
-    rotateAround(x: number, y: number, a: number): this {
-        for(let i=0; i<this.vertices.length; i+=2) {
-            let v = new Vec2(this.vertices[i]!, this.vertices[i+1]!);
-            v.x -= x;
-            v.y -= y;
-            v.rotateSelf(a);
-            v.x += x;
-            v.y += y;
-            this.vertices[i] = v.x;
-            this.vertices[i+1] = v.y;
+    rotateSelf(a: number): this {
+        for(let i=0; i<this.positions.length; i+=2) {
+            let v = new Vec2(this.positions[i]!, this.positions[i+1]!).rotateSelf(a);
+            this.positions[i] = v.x;
+            this.positions[i+1] = v.y;
         }
         return this;
     }
-    scaleFrom(x: number, y: number, s: number): this {
-        for(let i=0; i<this.vertices.length; i+=2) {
-            let v = new Vec2(this.vertices[i]!, this.vertices[i+1]!);
-            v.x -= x;
-            v.y -= y;
-            v.mulSelfF(s);
-            v.x += x;
-            v.y += y;
-            this.vertices[i] = v.x;
-            this.vertices[i+1] = v.y;
+    scaleSelf(v: Vec2): this {
+        return this.scaleSelfC(v.x, v.y);
+    }
+    scaleSelfC(x: number, y: number): this {
+        for(let i=0; i<this.positions.length; i+=2) {
+            this.positions[i]! *= x;
+            this.positions[i+1]! *= y;
         }
         return this;
     }
-    translate(x: number, y: number): this {
-        for(let i=0; i<this.vertices.length; i+=2) {
-            let v = new Vec2(this.vertices[i]!, this.vertices[i+1]!);
-            v.x += x;
-            v.y += y;
-            this.vertices[i] = v.x;
-            this.vertices[i+1] = v.y;
+    translateSelf(v: Vec2): this {
+        return this.translateSelfC(v.x, v.y);
+    }
+    translateSelfC(x: number, y: number): this {
+        for(let i=0; i<this.positions.length; i+=2) {
+            this.positions[i]! += x;
+            this.positions[i+1]! += y;
         }
         return this;
     }
-    fill(ctx: CanvasRenderingContext2D, color: string): this {
+    getVertex(index: number): Vec2 {
+        const j = EMath.pmod(index, Math.floor(this.positions.length/2))*2;
+        return new Vec2(this.positions[j]!, this.positions[j+1]!);
+    }
+    bevelSelf(indices: Set<number> | number[], amount: number): this {
+        if(!(indices instanceof Set))
+            indices = new Set(indices);
+        let newPositions: number[] = [];
+        let len = Math.floor(this.positions.length/2);
+        for(let index=0; index<len; index++) {
+            if(!indices.has(index))
+                continue;
+            let vA = this.getVertex(index-1);
+            let vB = this.getVertex(index);
+            let vC = this.getVertex(index+1);
+            let tMaxA = vA.dist(vB);
+            let tMaxC = vC.dist(vB);
+            if(indices.has(index-1)) tMaxA /= 2;
+            if(indices.has(index+1)) tMaxC /= 2;
+            let b1 = vB.addScaled(vB.look(vA), EMath.clamp(amount, 0, tMaxA));
+            let b2 = vB.addScaled(vB.look(vC), EMath.clamp(amount, 0, tMaxC));
+            newPositions.push(b1.x, b1.y, b2.x, b2.y);
+        }
+        this.positions = newPositions;
+        return this;
+    }
+    bevelAllSelf(amount: number) {
+        let newPositions: number[] = [];
+        let len = Math.floor(this.positions.length/2);
+        for(let index=0; index<len; index++) {
+            let vA = this.getVertex(index-1);
+            let vB = this.getVertex(index);
+            let vC = this.getVertex(index+1);
+            let tMaxA = vA.dist(vB) / 2;
+            let tMaxC = vC.dist(vB) / 2;
+            let b1 = vB.addScaled(vB.look(vA), EMath.clamp(amount, 0, tMaxA));
+            let b2 = vB.addScaled(vB.look(vC), EMath.clamp(amount, 0, tMaxC));
+            newPositions.push(b1.x, b1.y, b2.x, b2.y);
+        }
+        this.positions = newPositions;
+        return this;
+    }
+    drawFill(ctx: CanvasRenderingContext2D, color: string): this {
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.moveTo(this.vertices[0]! * (ctx.canvas.width - 1), this.vertices[1]! * (ctx.canvas.height - 1));
-        for(let i=2; i<this.vertices.length; i+=2) {
-            ctx.lineTo(this.vertices[i]! * (ctx.canvas.width - 1), this.vertices[i+1]! * (ctx.canvas.height - 1));
+        ctx.moveTo(this.positions[0]! * (ctx.canvas.width - 1), this.positions[1]! * (ctx.canvas.height - 1));
+        for(let i=2; i<this.positions.length; i+=2) {
+            ctx.lineTo(this.positions[i]! * (ctx.canvas.width - 1), this.positions[i+1]! * (ctx.canvas.height - 1));
         }
         ctx.closePath();
         ctx.fill();
         return this;
     }
-    bevelVertex(index: number, amount: number) {
-        let prevI = EMath.pmod(index - 2, this.vertices.length);
-        let nextI = EMath.pmod(index + 2, this.vertices.length);
-        let original = new Vec2(this.vertices[index]!, this.vertices[index+1]!);
-        let dir1 = original.look(new Vec2(this.vertices[prevI]!, this.vertices[prevI+1]!));
-        let dir2 = original.look(new Vec2(this.vertices[nextI]!, this.vertices[nextI+1]!));
-        let v1 = original.add(dir1.mulF(amount));
-        let v2 = original.add(dir2.mulF(amount));
-        this.vertices[index] = v1.x;
-        this.vertices[index+1] = v1.y;
-        this.vertices.splice(index+2, 0, v2.y);
-        this.vertices.splice(index+2, 0, v2.x);
-        return this;
+    static createPositions(positions: number[]): IconPolygon2D {
+        const poly = new IconPolygon2D();
+        poly.positions = positions;
+        return poly;
+    }
+    static rect(x: number, y: number, w: number, h: number): IconPolygon2D {
+        const x0 = x - w/2;
+        const x1 = x + w/2;
+        const y0 = y - h/2;
+        const y1 = y + h/2;
+        return this.createPositions([x0,y0, x1,y0, x1,y1, x0,y1]);
+    }
+    static circle(x: number, y: number, r: number, arc: number = Math.PI * 2, step = Math.PI / 8): IconPolygon2D {
+        arc = EMath.clamp(arc, 0, Math.PI * 2);
+        let positions: number[] = [];
+        for(let i=0; i<arc; i+=step) {
+            positions.push(Math.cos(i) * r + x, Math.sin(i) * r + y);
+        }
+        positions.push(Math.cos(arc) * r + x, Math.sin(arc) * r + y);
+        return this.createPositions(positions);
+    }
+    static circleFan(x: number, y: number, r: number, arc: number = Math.PI * 2, step = Math.PI / 8): IconPolygon2D {
+        const poly = this.circle(x, y, r, arc, step);
+        poly.positions.splice(0, 0, x, y);
+        return poly;
     }
 }
 
@@ -2820,39 +2874,6 @@ export class IconGenerationContext2D {
     constructor(public ctx: CanvasRenderingContext2D) {
         this.setLayer("0");
     }
-    createPoly(vertices: number[]) {
-        let poly = new Polygon2D();
-        poly.vertices = vertices;
-        return poly;
-    }
-    createRect(x: number, y: number, w: number, h: number) {
-        const x0 = x - w/2;
-        const x1 = x + w/2;
-        const y0 = y - h/2;
-        const y1 = y + h/2;
-        return this.createPoly([x0,y0, x1,y0, x1,y1, x0,y1]);
-    }
-    createCircle(x: number, y: number, r: number, arc: number = Math.PI * 2, step = Math.PI / 8) {
-        let vertices: number[] = [];
-        vertices.push(x, y);
-        for(let i=0; i<arc; i+=step)
-            vertices.push(...new Vec2(r, 0).rotateSelf(i).addSelf(new Vec2(x, y)).toArray());
-        vertices.push(...new Vec2(r, 0).rotateSelf(arc).addSelf(new Vec2(x, y)).toArray());
-        return this.createPoly(vertices);
-    }
-    convertValueToTransparency(): this {
-        const ctx = this.selectedLayer;
-        let data = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
-        for(let i=0; i<data.data.length; i+=4) {
-            let v = Math.floor((data.data[i]! + data.data[i+1]! + data.data[i+2]!) / 3);
-            data.data[i] = 255;
-            data.data[i+1] = 255;
-            data.data[i+2] = 255;
-            data.data[i+3] = v;
-        }
-        this.selectedLayer.putImageData(data, 0, 0);
-        return this;
-    }
     map(callback: (x: number, y: number, getColor: (x: number, y: number) => Color) => Color): this {
         const ctx = this.selectedLayer;
         let data = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -2861,7 +2882,7 @@ export class IconGenerationContext2D {
             const i = (y * ctx.canvas.width + x) * 4;
             if(i < 0 || i >= data.data.length)
                 return new Color(0, 0, 0, 0);
-            return new Color(data.data[i]!, data.data[i+1]!, data.data[i+2]!, data.data[i+3]!/255*100);
+            return new Color(data.data[i]!, data.data[i+1]!, data.data[i+2]!, data.data[i+3]!/255);
         }
         for(let y=0; y<ctx.canvas.height; y++) {
             for(let x=0; x<ctx.canvas.width; x++) {
@@ -2870,11 +2891,25 @@ export class IconGenerationContext2D {
                 newData.data[i] = Math.floor(color.r);
                 newData.data[i+1] = Math.floor(color.g);
                 newData.data[i+2] = Math.floor(color.b);
-                newData.data[i+3] = Math.floor(color.a/100*255);
+                newData.data[i+3] = Math.floor(color.a*255);
             }
         }
         ctx.putImageData(newData, 0, 0);
         return this;
+    }
+    brightnessToOpacity(invert = false): this {
+        return this.map((x, y, getColor) => {
+            let color = getColor(x, y);
+            let t = color.a;
+            color.a = color.val / 100;
+            if(invert) color.a = 1 - color.a;
+            color.a *= t;
+            let v = invert ? 0 : 255;
+            color.r = v;
+            color.g = v;
+            color.b = v;
+            return color;
+        });
     }
     mirrorX(): this {
         return this.map((x, y, getColor) => getColor(this.ctx.canvas.width - 1 - x, y));
@@ -2895,26 +2930,34 @@ export class IconGenerationContext2D {
     }
     flatten(): this {
         const ctx = this.ctx;
-        let newData = ctx.createImageData(ctx.canvas.width, ctx.canvas.height);
-        let datas = [];
+        let flattenedData = ctx.createImageData(ctx.canvas.width, ctx.canvas.height);
+        let layerDatas = [];
         for(const name in this.layers) {
             let layer = this.layers[name]!;
-            let layerData = layer.getImageData(0, 0, layer.canvas.width, layer.canvas.height);
-            datas.push(layerData);
+            let data = layer.getImageData(0, 0, layer.canvas.width, layer.canvas.height);
+            layerDatas.push(data);
         }
         for(let y=0; y<ctx.canvas.height; y++) {
             for(let x=0; x<ctx.canvas.width; x++) {
                 const i = (y * ctx.canvas.width + x) * 4;
-                for(let data of datas) {
-                    let blend = data.data[i+3]!/255;
-                    newData.data[i] = Math.floor(EMath.lerp(newData.data[i]!,   data.data[i]!,   blend));
-                    newData.data[i+1] = Math.floor(EMath.lerp(newData.data[i+1]!, data.data[i+1]!, blend));
-                    newData.data[i+2] = Math.floor(EMath.lerp(newData.data[i+2]!, data.data[i+2]!, blend));
-                    newData.data[i+3] = Math.floor(EMath.lerp(newData.data[i+3]!, 255, blend));
+                for(let data of layerDatas) {
+                    let srcA = data.data[i+3]!/255;
+                    let dstA = flattenedData.data[i+3]!/255;
+                    let newA = srcA + dstA * (1 - srcA);
+                    if(newA > 0) {
+                        flattenedData.data[i] = (data.data[i]! * srcA + flattenedData.data[i]! * dstA * (1 - srcA)) / newA;
+                        flattenedData.data[i+1] = (data.data[i+1]! * srcA + flattenedData.data[i+1]! * dstA * (1 - srcA)) / newA;
+                        flattenedData.data[i+2] = (data.data[i+2]! * srcA + flattenedData.data[i+2]! * dstA * (1 - srcA)) / newA;
+                    } else {
+                        flattenedData.data[i] = 0;
+                        flattenedData.data[i+1] = 0;
+                        flattenedData.data[i+2] = 0;
+                    }
+                    flattenedData.data[i+3] = newA * 255;
                 }
             }
         }
-        ctx.putImageData(newData, 0, 0);
+        ctx.putImageData(flattenedData, 0, 0);
         for(const name in this.layers) {
             let layer = this.layers[name]!;
             layer.canvas.remove();
@@ -2964,17 +3007,11 @@ export class UiContextMenu {
 //////////////////////
 export class UiButton {
     containerEl: HTMLDivElement;
-    labelEl?: HTMLDivElement;
-    buttonEl?: HTMLButtonElement;
-    clipEl?: HTMLDivElement;
-    canvas?: HTMLCanvasElement;
-    gl?: WebGL2RenderingContext;
-    backgroundShader?: WGL2Shader;
-    textShader?: WGL2Shader;
-    textTexture?: WGL2Texture2D;
-    backgroundColor = new Color("rgb(255, 255, 255)");
-    hoverColor = new Color("rgb(199, 199, 199)");
+    labelEl: HTMLDivElement;
+    buttonEl: HTMLButtonElement;
     isHovering = false;
+    mouseEnterEvent: Signal<[]> = new Signal();
+    mouseLeaveEvent: Signal<[]> = new Signal();
     constructor() {
         this.containerEl = document.createElement("div");
         document.body.appendChild(this.containerEl);
@@ -2985,6 +3022,11 @@ export class UiButton {
             background-color: white;
             border-radius: 4px;
             border: 1px solid black;
+            user-select: none;
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
         `;
         this.buttonEl = document.createElement("button");
         this.containerEl.appendChild(this.buttonEl);
@@ -3011,17 +3053,45 @@ export class UiButton {
             padding: 4px 8px;
             pointer-events: none;
         `;
-        this.setText("button");
-        this.setDefaultBackgroundColor(new Color("rgb(255, 255, 255)"));
-        this.setHoverBackgroundColor(new Color("rgb(200, 200, 200)"));
+        this.labelEl.textContent = "UI Button";
+        this.buttonEl.addEventListener("mouseenter", e => {
+            this.isHovering = true;
+            this.mouseEnterEvent.fire();
+        });
+        this.buttonEl.addEventListener("mouseleave", e => {
+            this.isHovering = false;
+            this.mouseLeaveEvent.fire();
+        });
     }
-    setText(text: string) {
-        this.labelEl!.textContent = text;
+}
+
+export class UiButtonIcon {
+    iconEl: HTMLImageElement;
+    constructor(button: UiButton, url: string, position: "prefix" | "suffix" = "prefix") {
+        this.iconEl = document.createElement("img");
+        this.iconEl.src = url;
+        this.iconEl.style.width = "24px";
+        this.iconEl.style.height = "24px";
+        if(position == "prefix") button.labelEl.before(this.iconEl)
+        else button.labelEl.after(this.iconEl);
     }
-    setDefaultBackgroundColor(color: Color) {
-        this.backgroundColor = color;
-    }
-    setHoverBackgroundColor(color: Color) {
-        this.hoverColor = color;
+}
+
+export class UiButtonBackgroundColorHoverEffect {
+    connections = new ConnectionGroup();
+    duration = 0.1;
+    constructor(public button: UiButton, public color: Color, public hoverColor: Color) {
+        this.connections.add(button.mouseEnterEvent.connect(() => {
+            button.containerEl.animate([
+                {backgroundColor:this.color.toString()},
+                {backgroundColor:this.hoverColor.toString()},
+            ], {duration:this.duration*1000, easing:"ease", fill:"forwards"});
+        }));
+        this.connections.add(button.mouseLeaveEvent.connect(() => {
+            button.containerEl.animate([
+                {backgroundColor:this.hoverColor.toString()},
+                {backgroundColor:this.color.toString()},
+            ], {duration:this.duration*1000, easing:"ease", fill:"forwards"});
+        }));
     }
 }
