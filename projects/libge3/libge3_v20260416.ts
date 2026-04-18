@@ -29,22 +29,46 @@ export abstract class EMath {
 //  VECTOR CLASSES  //
 //////////////////////
 export class Vec3 {
-    x: number;
-    y: number;
-    z: number;
-    constructor(v: Vec3 | {x: number, y: number, z: number});
-    constructor(x: number, y: number, z: number);
-    constructor(x: number | {x:number, y:number, z:number}, y?: number, z?: number) {
+    _x: number;
+    _y: number;
+    _z: number;
+    onMutate?: () => void;
+    constructor(v: Vec3 | {x: number, y: number, z: number}, onMutate?: () => void);
+    constructor(x: number, y: number, z: number, onMutate?: () => void);
+    constructor(x: number | Vec3 | {x:number, y:number, z:number}, y?: number | ((index: number) => void), z?: number, onMutate?: () => void) {
         if(typeof x === "object") {
-            this.x = x.x;
-            this.y = x.y;
-            this.z = x.z;
+            this._x = x.x;
+            this._y = x.y;
+            this._z = x.z;
+            this.onMutate = y as (() => void);
         } else {
-            this.x = x;
-            this.y = y!;
-            this.z = z!;
+            this._x = x;
+            this._y = y! as number;
+            this._z = z!;
+            this.onMutate = onMutate;
         }
     }
+
+    mutate() {
+        if(this.onMutate)
+            this.onMutate();
+    }
+    
+    set x(value: number) {
+        this._x = value;
+        this.mutate();
+    }
+    get x() { return this._x; }
+    set y(value: number) {
+        this._y = value;
+        this.mutate();
+    }
+    get y() { return this._y; }
+    set z(value: number) {
+        this._z = value;
+        this.mutate();
+    }
+    get z() { return this._z; }
 
     // Static Constructors
     static fill(n: number): Vec3 { return new Vec3(n, n, n); }
@@ -67,56 +91,46 @@ export class Vec3 {
     // Miscellaneous
     get(i: number): number | undefined {
         switch(i) {
-            case 0: return this.x;
-            case 1: return this.y;
-            case 2: return this.z;
+            case 0: return this._x;
+            case 1: return this._y;
+            case 2: return this._z;
         }
         return undefined;
     }
     set(i: number, v: number): void {
         switch(i) {
-            case 0: this.x = v; return;
-            case 1: this.y = v; return;
-            case 2: this.z = v; return;
+            case 0: this._x = v; this.mutate(); return;
+            case 1: this._y = v; this.mutate(); return;
+            case 2: this._z = v; this.mutate(); return;
         }
     }
     setC(x: number, y: number, z: number): this {
-        this.x = x;
-        this.y = y;
-        this.z = z;
+        this._x = x;
+        this._y = y;
+        this._z = z;
+        this.mutate();
         return this;
     }
     *[Symbol.iterator]() {
-        yield this.x;
-        yield this.y;
-        yield this.z;
+        yield this._x;
+        yield this._y;
+        yield this._z;
     }
     toString(): string {
-        return `<${this.x.toFixed(2)}, ${this.y.toFixed(2)}, ${this.z.toFixed(2)}>`;
+        return `<${this._x.toFixed(2)}, ${this._y.toFixed(2)}, ${this._z.toFixed(2)}>`;
     }
     toArray(): [number, number, number] {
-        return [this.x, this.y, this.z];
+        return [this._x, this._y, this._z];
     }
     clone(): Vec3 {
         return new Vec3(this);
     }
-    getAxisBit(): number {
-        const ax = Math.abs(this.x);
-        const ay = Math.abs(this.y);
-        const az = Math.abs(this.z);
-        if(ax > ay) {
-            if(ax > az) {
-                return 0b100;
-            } else {
-                return 0b001;
-            }
-        } else {
-            if(ay > az) {
-                return 0b010;
-            } else {
-                return 0b001;
-            }
-        }
+    getPrimaryAxis(): number {
+        const ax = Math.abs(this._x);
+        const ay = Math.abs(this._y);
+        const az = Math.abs(this._z);
+        if(ax > ay) return ax > az ? 0 : 2;
+        else return ay > az ? 1 : 2;
     }
 
     // Calculations
@@ -124,16 +138,16 @@ export class Vec3 {
         return Math.sqrt(this.dot(this));
     }
     dot(other: Vec3): number {
-        return this.x * other.x + this.y * other.y + this.z * other.z;
+        return this._x * other._x + this._y * other._y + this._z * other._z;
     }
     dotC(x: number, y: number, z: number): number {
-        return this.x * x + this.y * y + this.z * z;
+        return this._x * x + this._y * y + this._z * z;
     }
     cross(other: Vec3): Vec3 {
-        return new Vec3(this.y * other.z - this.z * other.y, - (this.x * other.z - this.z * other.x), this.x * other.y - this.y * other.x);
+        return new Vec3(this._y * other._z - this._z * other._y, - (this._x * other._z - this._z * other._x), this._x * other._y - this._y * other._x);
     }
     crossC(x: number, y: number, z: number): Vec3 {
-        return new Vec3(this.y * z - this.z * y, - (this.x * z - this.z * x), this.x * y - this.y * x);
+        return new Vec3(this._y * z - this._z * y, - (this._x * z - this._z * x), this._x * y - this._y * x);
     }
     angle(other: Vec3): number {
         const c = this.length() * other.length();
@@ -155,227 +169,250 @@ export class Vec3 {
         return this.subC(x, y, z).length();
     }
     strictEquals(other: Vec3): boolean {
-        return this.x == other.x && this.y == other.y && this.z == other.z;
+        return this._x == other._x && this._y == other._y && this._z == other._z;
     }
     isClose(other: Vec3, e = 1e-6): boolean {
-        return EMath.isClose(this.x, other.x, e) && EMath.isClose(this.y, other.y, e) && EMath.isClose(this.z, other.z, e);
+        return EMath.isClose(this._x, other._x, e) && EMath.isClose(this._y, other._y, e) && EMath.isClose(this._z, other._z, e);
     }
     isZero(e = 1e-6): boolean {
-        return EMath.isZero(this.x, e) && EMath.isZero(this.y, e) && EMath.isZero(this.z, e);
+        return EMath.isZero(this._x, e) && EMath.isZero(this._y, e) && EMath.isZero(this._z, e);
     }
     pitch(): number {
-        return Math.asin(this.y);
+        return Math.asin(this._y);
     }
     yaw(): number {
-        return Math.atan2(-this.x, -this.z);
+        return Math.atan2(-this._x, -this._z);
     }
 
     // Operations
     add(other: Vec3): Vec3 {
-        return new Vec3(this.x + other.x, this.y + other.y, this.z + other.z);
+        return new Vec3(this._x + other._x, this._y + other._y, this._z + other._z);
     }
     addSelf(other: Vec3): this {
-        this.x += other.x;
-        this.y += other.y;
-        this.z += other.z;
+        this._x += other._x;
+        this._y += other._y;
+        this._z += other._z;
+        this.mutate();
         return this;
     }
     addC(x: number, y: number, z: number): Vec3 {
-        return new Vec3(this.x + x, this.y + y, this.z + z);
+        return new Vec3(this._x + x, this._y + y, this._z + z);
     }
     addSelfC(x: number, y: number, z: number): this {
-        this.x += x;
-        this.y += y;
-        this.z += z;
+        this._x += x;
+        this._y += y;
+        this._z += z;
+        this.mutate();
         return this;
     }
     addF(n: number): Vec3 {
-        return new Vec3(this.x + n, this.y + n, this.z + n);
+        return new Vec3(this._x + n, this._y + n, this._z + n);
     }
     addSelfF(n: number): this {
-        this.x += n;
-        this.y += n;
-        this.z += n;
+        this._x += n;
+        this._y += n;
+        this._z += n;
+        this.mutate();
         return this;
     }
     addScaled(other: Vec3, s: number): Vec3 {
         return this.clone().addScaledSelf(other, s);
     }
     addScaledSelf(other: Vec3, s: number): this {
-        this.x += other.x * s;
-        this.y += other.y * s;
-        this.z += other.z * s;
+        this._x += other._x * s;
+        this._y += other._y * s;
+        this._z += other._z * s;
+        this.mutate();
         return this;
     }
     addScaledC(x: number, y: number, z: number, s: number): Vec3 {
         return this.clone().addScaledSelfC(x, y, z, s);
     }
     addScaledSelfC(x: number, y: number, z: number, s: number): this {
-        this.x += x * s;
-        this.y += y * s;
-        this.z += z * s;
+        this._x += x * s;
+        this._y += y * s;
+        this._z += z * s;
+        this.mutate();
         return this;
     }
     sub(other: Vec3): Vec3 {
-        return new Vec3(this.x - other.x, this.y - other.y, this.z - other.z);
+        return new Vec3(this._x - other._x, this._y - other._y, this._z - other._z);
     }
     subSelf(other: Vec3): this {
-        this.x -= other.x;
-        this.y -= other.y;
-        this.z -= other.z;
+        this._x -= other._x;
+        this._y -= other._y;
+        this._z -= other._z;
+        this.mutate();
         return this;
     }
     subC(x: number, y: number, z: number): Vec3 {
-        return new Vec3(this.x - x, this.y - y, this.z - z);
+        return new Vec3(this._x - x, this._y - y, this._z - z);
     }
     subSelfC(x: number, y: number, z: number): this {
-        this.x -= x;
-        this.y -= y;
-        this.z -= z;
+        this._x -= x;
+        this._y -= y;
+        this._z -= z;
+        this.mutate();
         return this;
     }
     subF(n: number): Vec3 {
-        return new Vec3(this.x - n, this.y - n, this.z - n);
+        return new Vec3(this._x - n, this._y - n, this._z - n);
     }
     subSelfF(n: number): this {
-        this.x -= n;
-        this.y -= n;
-        this.z -= n;
+        this._x -= n;
+        this._y -= n;
+        this._z -= n;
+        this.mutate();
         return this;
     }
     rsub(other: Vec3): Vec3 {
-        return new Vec3(other.x - this.x, other.y - this.y, other.z - this.z);
+        return new Vec3(other._x - this._x, other._y - this._y, other._z - this._z);
     }
     rsubSelf(other: Vec3): this {
-        this.x = other.x - this.x;
-        this.y = other.y - this.y;
-        this.z = other.z - this.z;
+        this._x = other._x - this._x;
+        this._y = other._y - this._y;
+        this._z = other._z - this._z;
+        this.mutate();
         return this;
     }
     rsubC(x: number, y: number, z: number): Vec3 {
-        return new Vec3(x - this.x, y - this.y, z - this.z);
+        return new Vec3(x - this._x, y - this._y, z - this._z);
     }
     rsubSelfC(x: number, y: number, z: number): this {
-        this.x = x - this.x;
-        this.y = y - this.y;
-        this.z = z - this.z;
+        this._x = x - this._x;
+        this._y = y - this._y;
+        this._z = z - this._z;
+        this.mutate();
         return this;
     }
     rsubF(n: number): Vec3 {
-        return new Vec3(n - this.x, n - this.y, n - this.z);
+        return new Vec3(n - this._x, n - this._y, n - this._z);
     }
     rsubSelfF(n: number): this {
-        this.x = n - this.x;
-        this.y = n - this.y;
-        this.z = n - this.z;
+        this._x = n - this._x;
+        this._y = n - this._y;
+        this._z = n - this._z;
+        this.mutate();
         return this;
     }
     mul(other: Vec3): Vec3 {
-        return new Vec3(this.x * other.x, this.y * other.y, this.z * other.z);
+        return new Vec3(this._x * other._x, this._y * other._y, this._z * other._z);
     }
     mulSelf(other: Vec3): this {
-        this.x *= other.x;
-        this.y *= other.y;
-        this.z *= other.z;
+        this._x *= other._x;
+        this._y *= other._y;
+        this._z *= other._z;
+        this.mutate();
         return this;
     }
     mulC(x: number, y: number, z: number): Vec3 {
-        return new Vec3(this.x * x, this.y * y, this.z * z);
+        return new Vec3(this._x * x, this._y * y, this._z * z);
     }
     mulSelfC(x: number, y: number, z: number): this {
-        this.x *= x;
-        this.y *= y;
-        this.z *= z;
+        this._x *= x;
+        this._y *= y;
+        this._z *= z;
+        this.mutate();
         return this;
     }
     mulF(n: number): Vec3 {
-        return new Vec3(this.x * n, this.y * n, this.z * n);
+        return new Vec3(this._x * n, this._y * n, this._z * n);
     }
     mulSelfF(n: number): this {
-        this.x *= n;
-        this.y *= n;
-        this.z *= n;
+        this._x *= n;
+        this._y *= n;
+        this._z *= n;
+        this.mutate();
         return this;
     }
     div(other: Vec3): Vec3 {
-        return new Vec3(this.x / other.x, this.y / other.y, this.z / other.z);
+        return new Vec3(this._x / other._x, this._y / other._y, this._z / other._z);
     }
     divSelf(other: Vec3): this {
-        this.x /= other.x;
-        this.y /= other.y;
-        this.z /= other.z;
+        this._x /= other._x;
+        this._y /= other._y;
+        this._z /= other._z;
+        this.mutate();
         return this;
     }
     divC(x: number, y: number, z: number): Vec3 {
-        return new Vec3(this.x / x, this.y / y, this.z / z);
+        return new Vec3(this._x / x, this._y / y, this._z / z);
     }
     divSelfC(x: number, y: number, z: number): this {
-        this.x /= x;
-        this.y /= y;
-        this.z /= z;
+        this._x /= x;
+        this._y /= y;
+        this._z /= z;
+        this.mutate();
         return this;
     }
     divF(n: number): Vec3 {
-        return new Vec3(this.x / n, this.y / n, this.z / n);
+        return new Vec3(this._x / n, this._y / n, this._z / n);
     }
     divSelfF(n: number): this {
-        this.x /= n;
-        this.y /= n;
-        this.z /= n;
+        this._x /= n;
+        this._y /= n;
+        this._z /= n;
+        this.mutate();
         return this;
     }
     rdiv(other: Vec3): Vec3 {
-        return new Vec3(other.x / this.x, other.y / this.y, other.z / this.z);
+        return new Vec3(other._x / this._x, other._y / this._y, other._z / this._z);
     }
     rdivSelf(other: Vec3): this {
-        this.x = other.x / this.x;
-        this.y = other.y / this.y;
-        this.z = other.z / this.z;
+        this._x = other._x / this._x;
+        this._y = other._y / this._y;
+        this._z = other._z / this._z;
+        this.mutate();
         return this;
     }
     rdivC(x: number, y: number, z: number): Vec3 {
-        return new Vec3(x / this.x, y / this.y, z / this.z);
+        return new Vec3(x / this._x, y / this._y, z / this._z);
     }
     rdivSelfC(x: number, y: number, z: number): this {
-        this.x = x / this.x;
-        this.y = y / this.y;
-        this.z = z / this.z;
+        this._x = x / this._x;
+        this._y = y / this._y;
+        this._z = z / this._z;
+        this.mutate();
         return this;
     }
     rdivF(n: number): Vec3 {
-        return new Vec3(n / this.x, n / this.y, n / this.z);
+        return new Vec3(n / this._x, n / this._y, n / this._z);
     }
     rdivSelfF(n: number): this {
-        this.x = n / this.x;
-        this.y = n / this.y;
-        this.z = n / this.z;
+        this._x = n / this._x;
+        this._y = n / this._y;
+        this._z = n / this._z;
+        this.mutate();
         return this;
     }
     neg(): Vec3 {
-        return new Vec3(-this.x, -this.y, -this.z);
+        return new Vec3(-this._x, -this._y, -this._z);
     }
     negSelf(): this {
-        this.x = -this.x;
-        this.y = -this.y;
-        this.z = -this.z;
+        this._x = -this._x;
+        this._y = -this._y;
+        this._z = -this._z;
+        this.mutate();
         return this;
     }
     lerp(other: Vec3, t: number): Vec3 {
         return this.clone().lerpSelf(other, t);
     }
     lerpSelf(other: Vec3, t: number): this {
-        this.x += (other.x - this.x) * t;
-        this.y += (other.y - this.y) * t;
-        this.z += (other.z - this.z) * t;
+        this._x += (other._x - this._x) * t;
+        this._y += (other._y - this._y) * t;
+        this._z += (other._z - this._z) * t;
+        this.mutate();
         return this;
     }
     lerpC(x: number, y: number, z: number, t: number): Vec3 {
         return this.clone().lerpSelfC(x, y, z, t);
     }
     lerpSelfC(x: number, y: number, z: number, t: number): this {
-        this.x += (x - this.x) * t;
-        this.y += (y - this.y) * t;
-        this.z += (z - this.z) * t;
+        this._x += (x - this._x) * t;
+        this._y += (y - this._y) * t;
+        this._z += (z - this._z) * t;
+        this.mutate();
         return this;
     }
     norm(): Vec3 {
@@ -409,7 +446,8 @@ export class Vec3 {
         return this.clone().flatSelf();
     }
     flatSelf(): this {
-        this.y = 0;
+        this._y = 0;
+        this.mutate();
         return this;
     }
     flatNorm(): Vec3 {
@@ -438,9 +476,10 @@ export class Vec3 {
         return this.clone().mapSelf(method);
     }
     mapSelf(method: (x: number, i: number) => number): this {
-        this.x = method(this.x, 0);
-        this.y = method(this.y, 1);
-        this.z = method(this.z, 2);
+        this._x = method(this._x, 0);
+        this._y = method(this._y, 1);
+        this._z = method(this._z, 2);
+        this.mutate();
         return this;
     }
     rotX(a: number): Vec3 {
@@ -448,9 +487,10 @@ export class Vec3 {
     }
     rotXSelf(a: number): this {
         const s = Math.sin(a), c = Math.cos(a);
-        const y = this.y * c - this.z * s;
-        this.z = this.y * s + this.z * c;
-        this.y = y;
+        const y = this._y * c - this._z * s;
+        this._z = this._y * s + this._z * c;
+        this._y = y;
+        this.mutate();
         return this;
     }
     rotY(a: number): Vec3 {
@@ -458,9 +498,10 @@ export class Vec3 {
     }
     rotYSelf(a: number): this {
         const s = Math.sin(a), c = Math.cos(a);
-        const z = this.z * c - this.x * s;
-        this.x = this.x * c + this.z * s;
-        this.z = z;
+        const z = this._z * c - this._x * s;
+        this._x = this._x * c + this._z * s;
+        this._z = z;
+        this.mutate();
         return this;
     }
     rotZ(a: number): Vec3 {
@@ -468,9 +509,10 @@ export class Vec3 {
     }
     rotZSelf(a: number): this {
         const s = Math.sin(a), c = Math.cos(a);
-        const x = this.x * c - this.y * s;
-        this.y = this.x * s + this.y * c;
-        this.x = x;
+        const x = this._x * c - this._y * s;
+        this._y = this._x * s + this._y * c;
+        this._x = x;
+        this.mutate();
         return this;
     }
     rotAxis(axis: Vec3, angle: number): Vec3 {
@@ -481,17 +523,18 @@ export class Vec3 {
         const s = Math.sin(angle), c = Math.cos(angle);
         const cross = axis.cross(this);
         const dot = axis.dot(this);
-        let x = this.x, y = this.y, z = this.z;
-        this.x = x * c + cross.x * s + axis.x * dot * (1 - c);
-        this.y = y * c + cross.y * s + axis.y * dot * (1 - c);
-        this.z = z * c + cross.z * s + axis.z * dot * (1 - c);
+        let x = this._x, y = this._y, z = this._z;
+        this._x = x * c + cross._x * s + axis._x * dot * (1 - c);
+        this._y = y * c + cross._y * s + axis._y * dot * (1 - c);
+        this._z = z * c + cross._z * s + axis._z * dot * (1 - c);
+        this.mutate();
         return this;
     }
     rotXYZ(rot: Vec3): Vec3 {
         return this.clone().rotXYZSelf(rot);
     }
     rotXYZSelf(rot: Vec3): this {
-        return this.rotXSelf(rot.x).rotYSelf(rot.y).rotZSelf(rot.z);
+        return this.rotXSelf(rot._x).rotYSelf(rot._y).rotZSelf(rot._z);
     }
     rotXYZC(x: number, y: number, z: number): Vec3 {
         return this.clone().rotXYZSelfC(x, y, z);
@@ -503,7 +546,7 @@ export class Vec3 {
         return this.clone().rotZYXSelf(rot);
     }
     rotZYXSelf(rot: Vec3): this {
-        return this.rotZSelf(rot.z).rotYSelf(rot.y).rotXSelf(rot.x);
+        return this.rotZSelf(rot._z).rotYSelf(rot._y).rotXSelf(rot._x);
     }
     rotZYXC(x: number, y: number, z: number): Vec3 {
         return this.clone().rotZYXSelfC(x, y, z);
@@ -997,12 +1040,14 @@ export abstract class Mat3 {
 }
 
 
+///////////////////
+//  NOISE CLASS  //
+///////////////////
 const gradients2D: Vec2[] = [];
 for(let i=0;i<12;i++) {
     const angle = 2 * Math.PI * i/12;
     gradients2D.push(new Vec2(Math.cos(angle), Math.sin(angle)));
 }
-
 const gradients3D: Vec3[] = [];
 for(let i=0;i<16;i++) {
     const y = 1 - (2*i)/(15);
@@ -1014,13 +1059,17 @@ for(let i=0;i<16;i++) {
         Math.sin(angle) * r,
     ));
 }
-
-///////////////////
-//  NOISE CLASS  //
-///////////////////
 export abstract class Noise {
     static fade(t: number) : number {
         return t * t * t * (t * (t * 6 - 15) + 10);
+    }
+    static randomConstant3(a: number, b: number, c: number) : number {
+        const it = (a * 2394823549) ^ (b * 43859742850) ^ (c * 23094565234);
+        return EMath.pmod(it, 10000) / 10000;
+    }
+    static randomConstant4(a: number, b: number, c: number, d: number) : number {
+        const it = (a * 2394823549) ^ (b * 43859742850) ^ (c * 23094565234) ^ (d * 8427824566);
+        return EMath.pmod(it, 10000) / 10000;
     }
     static getPerlinVector2D(x: number, y: number, seed = 0) : Vec2 {
         return gradients2D[Math.floor(Noise.randomConstant3(seed, x, y) * gradients2D.length)]!;
@@ -1140,14 +1189,6 @@ export abstract class Noise {
         }
         return data;
     }
-    static randomConstant3(a: number, b: number, c: number) : number {
-        const it = (a * 2394823549) ^ (b * 43859742850) ^ (c * 23094565234);
-        return EMath.pmod(it, 10000) / 10000;
-    }
-    static randomConstant4(a: number, b: number, c: number, d: number) : number {
-        const it = (a * 2394823549) ^ (b * 43859742850) ^ (c * 23094565234) ^ (d * 8427824566);
-        return EMath.pmod(it, 10000) / 10000;
-    }
 }
 
 
@@ -1155,50 +1196,53 @@ export abstract class Noise {
 //  CAMERA CLASSES  //
 //////////////////////
 export class Camera3D {
-    private _fovY: number = 95/180*Math.PI;
+    private _fovY!: number;
     get fovY() {
         return this._fovY;
     }
     set fovY(n: number) {
         this._fovY = n;
-        this._perspectiveMatrixU = true;
+        this._outdatedPerspectiveMatrix = true;
     }
 
-    private _aspect: number = 1;
+    private _aspect!: number;
     get aspect() {
         return this._aspect;
     }
     set aspect(n: number) {
         this._aspect = n;
-        this._perspectiveMatrixU = true;
+        this._outdatedPerspectiveMatrix = true;
     }
 
-    private _near: number = 0.1;
+    private _near!: number;
     get near() {
         return this._near;
     }
     set near(n: number) {
         this._near = n;
-        this._perspectiveMatrixU = true;
+        this._outdatedPerspectiveMatrix = true;
     }
 
-    private _far: number = 10000;
+    private _far!: number;
     get far() {
         return this._far;
     }
     set far(n: number) {
         this._far = n;
-        this._perspectiveMatrixU = true;
+        this._outdatedPerspectiveMatrix = true;
     }
 
-    private _position = Vec3.zero();
+    private _position!: Vec3;
     get position() {
         return this._position;
     }
     set position(v: Vec3) {
         this._position = v;
-        this._translationMatrixU = true;
-        this._viewMatrixU = true;
+        v.onMutate = () => {
+            this._outdatedTranslationMatrix = true;
+            this._outdatedViewMatrix = true;
+        };
+        v.onMutate();
     }
 
     private _worldScale = 1;
@@ -1207,90 +1251,93 @@ export class Camera3D {
     }
     set worldScale(n: number) {
         this._worldScale = n;
-        this._translationMatrixU = true;
-        this._viewMatrixU = true;
+        this._outdatedTranslationMatrix = true;
+        this._outdatedViewMatrix = true;
     }
 
-    private _rotation = Vec3.zero();
+    private _rotation!: Vec3;
     get rotation() {
         return this._rotation;
     }
     set rotation(v: Vec3) {
         this._rotation = v;
-        this._forwardU = true;
-        this._rightU = true;
-        this._upU = true;
-        this._forwardFlatU = true;
-        this._rotationMatrixU = true;
-        this._viewMatrixU = true;
+        v.onMutate = () => {
+            this._outdatedForward = true;
+            this._outdatedRight = true;
+            this._outdatedUp = true;
+            this._outdatedForwardFlat = true;
+            this._outdatedRotationMatrix = true;
+            this._outdatedViewMatrix = true;
+        };
+        v.onMutate();
     }
 
     private _forward = Vec3.zero();
-    private _forwardU = true;
+    private _outdatedForward?: boolean = true;
     get forward() {
-        if(this._forwardU) {
+        if(this._outdatedForward) {
             this._forward = Vec3.zAxis().negSelf().rotXYZSelf(this._rotation);
-            this._forwardU = false;
+            delete this._outdatedForward;
         }
         return this._forward;
     }
 
     private _right = Vec3.zero();
-    private _rightU = true;
+    private _outdatedRight?: boolean = true;
     get right() {
-        if(this._rightU) {
+        if(this._outdatedRight) {
             this._right = Vec3.xAxis().rotXYZSelf(this._rotation);
-            this._rightU = false;
+            delete this._outdatedRight;
         }
         return this._right;
     }
 
     private _up = Vec3.zero();
-    private _upU = true;
+    private _outdatedUp?: boolean = true;
     get up() {
-        if(this._upU) {
+        if(this._outdatedUp) {
             this._up = Vec3.yAxis().rotXYZSelf(this._rotation);
-            this._upU = false;
+            delete this._outdatedUp;
         }
         return this._up;
     }
 
     private _forwardFlat = Vec3.zero();
-    private _forwardFlatU = true;
+    private _outdatedForwardFlat?: boolean = true;
     get forwardFlat() {
-        if(this._forwardFlatU) {
+        if(this._outdatedForwardFlat) {
             this._forwardFlat = Vec3.zAxis().negSelf().rotYSelf(this._rotation.y);
-            this._forwardFlatU = false;
+            delete this._outdatedForwardFlat;
         }
         return this._forwardFlat;
     }
 
     private _perspectiveMatrix: number[] = [];
-    private _perspectiveMatrixU = true;
+    private _outdatedPerspectiveMatrix?: boolean = true;
     get perspectiveMatrix() {
-        if(this._perspectiveMatrixU) {
+        if(this._outdatedPerspectiveMatrix) {
             this._perspectiveMatrix = Mat4.perspective(this._fovY, this._aspect, this._near, this._far);
-            this._perspectiveMatrixU = false;
+            delete this._outdatedPerspectiveMatrix;
             this.perspectiveMatrixChangeEvent.fire(this._perspectiveMatrix);
         }
         return this._perspectiveMatrix;
     }
 
     private _translationMatrix: number[] = [];
-    private _translationMatrixU = true;
+    private _outdatedTranslationMatrix?: boolean = true;
     get translationMatrix() {
-        if(this._translationMatrixU) {
+        if(this._outdatedTranslationMatrix) {
             this._translationMatrix = Mat4.translate(-this._position.x * this._worldScale, -this._position.y * this._worldScale, -this._position.z * this._worldScale);
-            this._translationMatrixU = false;
+            delete this._outdatedTranslationMatrix;
             this.translationMatrixChangeEvent.fire(this._viewMatrix);
         }
         return this._translationMatrix;
     }
 
     private _rotationMatrix: number[] = [];
-    private _rotationMatrixU = true;
+    private _outdatedRotationMatrix?: boolean = true;
     get rotationMatrix() {
-        if(this._rotationMatrixU) {
+        if(this._outdatedRotationMatrix) {
             this._rotationMatrix = Mat4.multiply(
                 Mat4.rotateZ(-this._rotation.z),
                 Mat4.multiply(
@@ -1298,18 +1345,18 @@ export class Camera3D {
                     Mat4.rotateY(-this._rotation.y),
                 )
             );
-            this._rotationMatrixU = false;
+            delete this._outdatedRotationMatrix;
             this.rotationMatrixChangeEvent.fire(this._viewMatrix);
         }
         return this._rotationMatrix;
     }
 
     private _viewMatrix: number[] = [];
-    private _viewMatrixU = true;
+    private _outdatedViewMatrix?: boolean = true;
     get viewMatrix() {
-        if(this._viewMatrixU) {
+        if(this._outdatedViewMatrix) {
             this._viewMatrix = Mat4.multiply(this.rotationMatrix, this.translationMatrix);
-            this._viewMatrixU = false;
+            delete this._outdatedViewMatrix;
             this.viewMatrixChangeEvent.fire(this._viewMatrix);
         }
         return this._viewMatrix;
@@ -1321,11 +1368,12 @@ export class Camera3D {
     public translationMatrixChangeEvent = new Signal({ onConnect: conn => conn.fire(this.translationMatrix) });
 
     constructor(position?: Vec3, fovY?: number, aspect?: number, near?: number, far?: number) {
-        if(position) this.position = position;
-        if(fovY) this.fovY = fovY;
-        if(aspect) this.aspect = aspect;
-        if(near) this.near = near;
-        if(far) this.far = far;
+        this.position = position ?? Vec3.zero();
+        this.fovY = fovY ?? 95/180*Math.PI;
+        this.aspect = aspect ?? 1;
+        this.near = near ?? 0.1;
+        this.far = far ?? 10000;
+        this.rotation = Vec3.zero();
     }
 
     lookAt(p: Vec3) {
@@ -2296,8 +2344,8 @@ export class Color {
                 this._g = g;
                 this._b = b;
                 this.a = a;
-                this._hasRgb = true;
-                this._hasHsv = false;
+                this._outdatedRgb = false;
+                this._outdatedHsv = true;
             } else if(cstruct === "hsv" || cstruct === "hsva") {
                 let cargs = cparam.split(",");
                 if(cargs.length < 3 || cargs.length > 4)
@@ -2323,8 +2371,8 @@ export class Color {
                 this._sat = s;
                 this._val = v;
                 this.a = a;
-                this._hasHsv = true;
-                this._hasRgb = false;
+                this._outdatedHsv = false;
+                this._outdatedRgb = true;
             } else {
                 throw new Error("Invalid color constructor: " + cstruct);
             }
@@ -2336,22 +2384,22 @@ export class Color {
             this._g = EMath.clamp(Math.round(argB!), 0, 255);
             this._b = EMath.clamp(Math.round(argC!), 0, 255);
             this.a = EMath.clamp(argD ?? 1, 0, 1);
-            this._hasRgb = true;
-            this._hasHsv = false;
+            this._outdatedRgb = false;
+            this._outdatedHsv = true;
         } else if(argA === undefined) {
             this._r = 0;
             this._g = 0;
             this._b = 0;
             this.a = 1;
-            this._hasRgb = true;
-            this._hasHsv = false;
+            this._outdatedRgb = false;
+            this._outdatedHsv = true;
         } else {
             this._r = argA!.r;
             this._g = argA!.g;
             this._b = argA!.b;
             this.a = argA!.a;
-            this._hasRgb = true;
-            this._hasHsv = false;
+            this._outdatedRgb = false;
+            this._outdatedHsv = true;
         }
     }
 
@@ -2359,9 +2407,7 @@ export class Color {
         return new Color(this);
     }
 
-    _hasRgb = false;
-    _hasHsv = false;
-
+    _outdatedRgb?: boolean;
     _r = 0;
     /**
      * (int) red value of the color, 0 - 255.
@@ -2370,14 +2416,14 @@ export class Color {
         value = EMath.clamp(Math.round(value), 0, 255);
         if(value == this._r)
             return;
-        if(!this._hasRgb)
-            this._addRgb();
+        if(this._outdatedRgb)
+            this._updateRgb();
         this._r = value;
-        this._hasHsv = false;
+        this._outdatedHsv = true;
     }
     get r() {
-        if(!this._hasRgb)
-            this._addRgb();
+        if(this._outdatedRgb)
+            this._updateRgb();
         return this._r;
     }
 
@@ -2389,14 +2435,14 @@ export class Color {
         value = EMath.clamp(Math.round(value), 0, 255);
         if(value == this._g)
             return;
-        if(!this._hasRgb)
-            this._addRgb();
+        if(this._outdatedRgb)
+            this._updateRgb();
         this._g = value;
-        this._hasHsv = false;
+        this._outdatedHsv = true;
     }
     get g() {
-        if(!this._hasRgb)
-            this._addRgb();
+        if(this._outdatedRgb)
+            this._updateRgb();
         return this._g;
     }
     
@@ -2408,18 +2454,18 @@ export class Color {
         value = EMath.clamp(Math.round(value), 0, 255);
         if(value == this._b)
             return;
-        if(!this._hasRgb)
-            this._addRgb();
+        if(this._outdatedRgb)
+            this._updateRgb();
         this._b = value;
-        this._hasHsv = false;
+        this._outdatedHsv = true;
     }
     get b() {
-        if(!this._hasRgb)
-            this._addRgb();
+        if(this._outdatedRgb)
+            this._updateRgb();
         return this._b;
     }
 
-    _addRgb() {
+    _updateRgb() {
         const {_hue:h, _sat:s, _val:v} = this;
         const c = v / 100 * s / 100;
         const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
@@ -2436,9 +2482,10 @@ export class Color {
         this._r = Math.round((rp + m) * 255);
         this._g = Math.round((gp + m) * 255);
         this._b = Math.round((bp + m) * 255);
-        this._hasRgb = true;
+        this._outdatedRgb = false;
     }
 
+    _outdatedHsv?: boolean;
     _hue = 0;
     /**
      * (decimal) hue of the color in degrees, 0 - 360.
@@ -2447,14 +2494,14 @@ export class Color {
         value = EMath.pmod(value, 360);
         if(value == this._hue)
             return;
-        if(!this._hasHsv)
-            this._addHsv();
+        if(this._outdatedHsv)
+            this._updateHsv();
         this._hue = value;
-        this._hasRgb = false;
+        this._outdatedRgb = true;
     }
     get hue() {
-        if(!this._hasHsv)
-            this._addHsv();
+        if(this._outdatedHsv)
+            this._updateHsv();
         return this._hue;
     }
 
@@ -2466,14 +2513,14 @@ export class Color {
         value = EMath.clamp(value, 0, 100);
         if(value == this._sat)
             return;
-        if(!this._hasHsv)
-            this._addHsv();
+        if(this._outdatedHsv)
+            this._updateHsv();
         this._sat = value;
-        this._hasRgb = false;
+        this._outdatedRgb = true;
     }
     get sat() {
-        if(!this._hasHsv)
-            this._addHsv();
+        if(this._outdatedHsv)
+            this._updateHsv();
         return this._sat;
     }
 
@@ -2485,18 +2532,18 @@ export class Color {
         value = EMath.clamp(value, 0, 100);
         if(value == this._val)
             return;
-        if(!this._hasHsv)
-            this._addHsv();
+        if(this._outdatedHsv)
+            this._updateHsv();
         this._val = value;
-        this._hasRgb = false;
+        this._outdatedRgb = true;
     }
     get val() {
-        if(!this._hasHsv)
-            this._addHsv();
+        if(this._outdatedHsv)
+            this._updateHsv();
         return this._val;
     }
 
-    _addHsv() {
+    _updateHsv() {
         const max = Math.max(this.r, this.g, this.b);
         const min = Math.min(this.r, this.g, this.b);
         const delta = max - min;
@@ -2512,7 +2559,7 @@ export class Color {
         this._hue = h;
         this._sat = s;
         this._val = v;
-        this._hasHsv = true;
+        this._outdatedHsv = false;
     }
 
     /**
@@ -2832,9 +2879,9 @@ export class IconPolygon2D {
     drawFill(ctx: CanvasRenderingContext2D, color: string): this {
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.moveTo(this.positions[0]! * (ctx.canvas.width - 1), this.positions[1]! * (ctx.canvas.height - 1));
+        ctx.moveTo(this.positions[0]! * ctx.canvas.width, this.positions[1]! * ctx.canvas.height);
         for(let i=2; i<this.positions.length; i+=2) {
-            ctx.lineTo(this.positions[i]! * (ctx.canvas.width - 1), this.positions[i+1]! * (ctx.canvas.height - 1));
+            ctx.lineTo(this.positions[i]! * ctx.canvas.width, this.positions[i+1]! * ctx.canvas.height);
         }
         ctx.closePath();
         ctx.fill();
@@ -3012,6 +3059,34 @@ export class UiButton {
     isHovering = false;
     mouseEnterEvent: Signal<[]> = new Signal();
     mouseLeaveEvent: Signal<[]> = new Signal();
+    prefixIcons: UiButtonIcon[] = [];
+    suffixIcons: UiButtonIcon[] = [];
+    textContentChangedEvent: Signal<[text:string]> = new Signal({onConnect:(conn)=>{conn.fire(this._textContent)}});
+    _textContent = "Button";
+    get textContent() { return this._textContent; }
+    set textContent(value: string) {
+        this._textContent = value;
+        this.textContentChangedEvent.fire(value);
+    }
+    textSizeChangedEvent: Signal<[size:number]> = new Signal({onConnect:(conn)=>{conn.fire(this._textSize)}});
+    _textSize = 16;
+    get textSize() { return this._textSize; }
+    set textSize(value: number) {
+        this._textSize = value;
+        this.textSizeChangedEvent.fire(value);
+    }
+    paddingXChangedEvent: Signal<[value:number]> = new Signal({onConnect:(conn)=>{conn.fire(this._paddingX)}});
+    _paddingX = 4;
+    get paddingX() { return this._paddingX; }
+    set paddingX(value: number) {
+        this._paddingX = value;
+    }
+    paddingYChangedEvent: Signal<[value:number]> = new Signal({onConnect:(conn)=>{conn.fire(this._paddingY)}});
+    _paddingY = 8;
+    get paddingY() { return this._paddingY; }
+    set paddingY(value: number) {
+        this._paddingY = value;
+    }
     constructor() {
         this.containerEl = document.createElement("div");
         document.body.appendChild(this.containerEl);
@@ -3028,6 +3103,13 @@ export class UiButton {
             justify-content: center;
             align-items: center;
         `;
+        this.paddingXChangedEvent.connect(value => {
+            this.containerEl.style.padding = `${value}px ${this.paddingY}px`;
+            this.containerEl.style.gap = `${value}px`;
+        });
+        this.paddingYChangedEvent.connect(value => {
+            this.containerEl.style.padding = `${this.paddingX}px ${value}px`;
+        });
         this.buttonEl = document.createElement("button");
         this.containerEl.appendChild(this.buttonEl);
         this.buttonEl.style = `
@@ -3047,13 +3129,16 @@ export class UiButton {
         this.labelEl.style = `
             color: black;
             font-family: Arial;
-            font-size: 14px;
             width: fit-content;
             height: fit-content;
-            padding: 4px 8px;
             pointer-events: none;
         `;
-        this.labelEl.textContent = "UI Button";
+        this.textSizeChangedEvent.connect(size => {
+            this.labelEl.style.fontSize = `${size}px`;
+        });
+        this.textContentChangedEvent.connect(text => {
+            this.labelEl.textContent = text;
+        });
         this.buttonEl.addEventListener("mouseenter", e => {
             this.isHovering = true;
             this.mouseEnterEvent.fire();
@@ -3063,23 +3148,33 @@ export class UiButton {
             this.mouseLeaveEvent.fire();
         });
     }
+    addIcon(url: string, position: "prefix" | "suffix" = "prefix") {
+        let icon = new UiButtonIcon(url);
+        if(position == "prefix") this.labelEl.before(icon.iconEl)
+        else this.labelEl.after(icon.iconEl);
+        icon.connections.add(this.textSizeChangedEvent.connect(size => {
+            icon.iconEl.style.width = `${size}px`;
+            icon.iconEl.style.height = `${size}px`;
+        }));
+    }
 }
 
 export class UiButtonIcon {
     iconEl: HTMLImageElement;
-    constructor(button: UiButton, url: string, position: "prefix" | "suffix" = "prefix") {
+    connections = new ConnectionGroup();
+    constructor(url: string) {
         this.iconEl = document.createElement("img");
         this.iconEl.src = url;
-        this.iconEl.style.width = "24px";
-        this.iconEl.style.height = "24px";
-        if(position == "prefix") button.labelEl.before(this.iconEl)
-        else button.labelEl.after(this.iconEl);
+    }
+    remove() {
+        this.connections.disconnectAll();
+        this.iconEl.remove();
     }
 }
 
-export class UiButtonBackgroundColorHoverEffect {
-    connections = new ConnectionGroup();
+export class UiBtnHoverFxSolidColor {
     duration = 0.1;
+    connections = new ConnectionGroup();
     constructor(public button: UiButton, public color: Color, public hoverColor: Color) {
         this.connections.add(button.mouseEnterEvent.connect(() => {
             button.containerEl.animate([
@@ -3093,5 +3188,14 @@ export class UiButtonBackgroundColorHoverEffect {
                 {backgroundColor:this.color.toString()},
             ], {duration:this.duration*1000, easing:"ease", fill:"forwards"});
         }));
+        if(button.isHovering) {
+            this.button.containerEl.style.backgroundColor = this.hoverColor.toString();
+        } else {
+            this.button.containerEl.style.backgroundColor = this.color.toString();
+        }
+    }
+    remove() {
+        this.connections.disconnectAll();
+        this.button.containerEl.style.backgroundColor = this.color.toString();
     }
 }
