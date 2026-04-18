@@ -167,6 +167,9 @@ function createQuestion(content) {
                         wrongEvent.fire();
                     }
                 });
+                requestAnimationFrame(() => {
+                    btn.buttonEl.focus();
+                });
             } else if(answer.includes("]:[")) {
                 let answerParts = answer.split("]:[");
                 let answerCorrects = answerParts[0].substring(1).split(",");
@@ -179,6 +182,7 @@ function createQuestion(content) {
                     display: flex;
                     flex-direction: column;
                     gap: 8px;
+                    margin-top: 8px;
                 `;
                 submitContainer.before(optionsDiv);
                 let abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -221,6 +225,9 @@ function createQuestion(content) {
                             wrongEvent.fire();
                         }
                     });
+                    requestAnimationFrame(() => {
+                        abtn.buttonEl.focus();
+                    });
                 }
             } else {
                 let input = document.createElement("input");
@@ -233,18 +240,31 @@ function createQuestion(content) {
                 input.style.border = "1px solid black";
                 input.style.borderRadius = "4px";
                 container.appendChild(input);
+                input.focus();
+                let isCorrect = false;
                 submitBtn.buttonEl.addEventListener("click", () => {
                     if(input.value.toLowerCase().trim() == answer) {
                         input.style.backgroundColor = "rgb(49, 138, 83)";
                         input.style.color = "white";
                         correctEvent.fire();
+                        isCorrect = true;
                     } else {
                         input.style.backgroundColor = "rgb(148, 32, 32)";
                         input.style.color = "white";
                         input.title = answerOriginal;
                         wrongEvent.fire();
+                        isCorrect = false;
                     }
                 });
+                input.onkeydown = e => {
+                    if(e.key.toLowerCase() == "enter") {
+                        if(isCorrect) {
+                            skipBtn.buttonEl.click();
+                        } else {
+                            submitBtn.buttonEl.click();
+                        }
+                    }
+                }
             }
         } else {
             let label = document.createElement("span");
