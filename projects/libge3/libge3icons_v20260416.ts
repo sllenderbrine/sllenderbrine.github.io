@@ -55,3 +55,13 @@ IconLibrary.addIcon("person", 64, 64, ctx => {
     IconPolygon2D.circleFan(0.5, 0.3, 0.15).drawFill(ctx.selectedLayer, "white");
     ctx.brightnessToOpacity(true);
 });
+IconLibrary.addIcon("circle", 64, 64, ctx => {
+    IconPolygon2D.circleFan(0.5, 0.5, 0.4).drawFill(ctx.selectedLayer, "black");
+    IconPolygon2D.circleFan(0.5, 0.5, 0.3).drawFill(ctx.selectedLayer, "white");
+    ctx.brightnessToOpacity(true);
+});
+IconLibrary.addIcon("folder", 64, 64, ctx => {
+    IconPolygon2D.createPositions([0.1,0.2,0.45,0.2,0.55,0.3,0.9,0.3,0.9,0.8,0.1,0.8]).drawFill(ctx.selectedLayer, "black");
+    IconPolygon2D.createPositions([0.1,0.2,0.38,0.2,0.5,0.33,0.9,0.33,0.9,0.8,0.1,0.8]).scaleSelfC(0.78, 0.75).translateSelfC(0.11, 0.125).drawFill(ctx.selectedLayer, "white");
+    ctx.brightnessToOpacity(true);
+});

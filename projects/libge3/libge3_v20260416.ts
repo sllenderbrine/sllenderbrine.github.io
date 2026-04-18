@@ -2640,6 +2640,20 @@ export class Color {
 }
 
 
+///////////////////
+//  ARRAY UTILS  //
+///////////////////
+export abstract class ArrayUtils {
+    static shuffleSelf<T>(array: T[]): T[] {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i]!, array[j]!] = [array[j]!, array[i]!];
+        }
+        return array;
+    }
+}
+
+
 /////////////////////
 //  INPUT CLASSES  //
 /////////////////////
@@ -3157,6 +3171,9 @@ export class UiButton {
             icon.iconEl.style.height = `${size}px`;
         }));
     }
+    remove() {
+        this.containerEl.remove();
+    }
 }
 
 export class UiButtonIcon {
@@ -3175,18 +3192,22 @@ export class UiButtonIcon {
 export class UiBtnHoverFxSolidColor {
     duration = 0.1;
     connections = new ConnectionGroup();
-    constructor(public button: UiButton, public color: Color, public hoverColor: Color) {
+    constructor(public button: UiButton, color: Color, hoverColor: Color) {
+        this.color = color;
+        this.hoverColor = hoverColor;
         this.connections.add(button.mouseEnterEvent.connect(() => {
             button.containerEl.animate([
                 {backgroundColor:this.color.toString()},
                 {backgroundColor:this.hoverColor.toString()},
-            ], {duration:this.duration*1000, easing:"ease", fill:"forwards"});
+            ], {duration:this.duration*1000, easing:"ease"});
+            button.containerEl.style.backgroundColor = this.hoverColor.toString();
         }));
         this.connections.add(button.mouseLeaveEvent.connect(() => {
             button.containerEl.animate([
                 {backgroundColor:this.hoverColor.toString()},
                 {backgroundColor:this.color.toString()},
-            ], {duration:this.duration*1000, easing:"ease", fill:"forwards"});
+            ], {duration:this.duration*1000, easing:"ease"});
+            button.containerEl.style.backgroundColor = this.color.toString();
         }));
         if(button.isHovering) {
             this.button.containerEl.style.backgroundColor = this.hoverColor.toString();
@@ -3194,6 +3215,22 @@ export class UiBtnHoverFxSolidColor {
             this.button.containerEl.style.backgroundColor = this.color.toString();
         }
     }
+
+    _color!: Color;
+    set color(value: Color) {
+        this._color = value;
+        if(!this.button.isHovering)
+            this.button.containerEl.style.backgroundColor = value.toString();
+    }
+    get color() { return this._color; }
+    _hoverColor!: Color;
+    set hoverColor(value: Color) {
+        this._hoverColor = value;
+        if(this.button.isHovering)
+            this.button.containerEl.style.backgroundColor = value.toString();
+    }
+    get hoverColor() { return this._hoverColor; }
+
     remove() {
         this.connections.disconnectAll();
         this.button.containerEl.style.backgroundColor = this.color.toString();
