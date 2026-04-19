@@ -557,18 +557,37 @@ export class Vec3 {
 }
 
 export class Vec2 {
-    x: number;
-    y: number;
-    constructor(v: Vec2 | {x: number, y: number});
-    constructor(x: number, y: number);
-    constructor(x: number | {x:number, y:number}, y?: number) {
+    constructor(v: Vec2 | {x: number, y: number}, onMutate?: () => void);
+    constructor(x: number, y: number, onMutate?: () => void);
+    constructor(x: number | {x:number, y:number}, y?: number | (() => void), onMutate?: () => void) {
         if(typeof x === "object") {
-            this.x = x.x;
-            this.y = x.y;
+            this._x = x.x;
+            this._y = x.y;
+            this.onMutate = y as (() => void);
         } else {
-            this.x = x;
-            this.y = y!;
+            this._x = x;
+            this._y = y as number;
+            this.onMutate = onMutate;
         }
+    }
+
+    _x: number;
+    get x() { return this._x; }
+    set x(value: number) {
+        this._x = value;
+        this.mutate();
+    }
+    _y: number;
+    get y() { return this._y; }
+    set y(value: number) {
+        this._y = value;
+        this.mutate();
+    }
+    onMutate?: () => void;
+
+    mutate() {
+        if(this.onMutate)
+            this.onMutate();
     }
 
     // Static Constructors
@@ -585,31 +604,33 @@ export class Vec2 {
     // Miscellaneous
     get(i: number): number | undefined {
         switch(i) {
-            case 0: return this.x;
-            case 1: return this.y;
+            case 0: return this._x;
+            case 1: return this._y;
         }
         return undefined;
     }
     set(i: number, v: number): void {
         switch(i) {
-            case 0: this.x = v; return;
-            case 1: this.y = v; return;
+            case 0: this._x = v; return;
+            case 1: this._y = v; return;
         }
+        this.mutate();
     }
     setC(x: number, y: number): this {
-        this.x = x;
-        this.y = y;
+        this._x = x;
+        this._y = y;
+        this.mutate();
         return this;
     }
     *[Symbol.iterator]() {
-        yield this.x;
-        yield this.y;
+        yield this._x;
+        yield this._y;
     }
     toString(): string {
-        return `<${this.x.toFixed(2)}, ${this.y.toFixed(2)}>`;
+        return `<${this._x.toFixed(2)}, ${this._y.toFixed(2)}>`;
     }
     toArray(): [number, number] {
-        return [this.x, this.y];
+        return [this._x, this._y];
     }
     clone(): Vec2 {
         return new Vec2(this);
@@ -620,10 +641,10 @@ export class Vec2 {
         return Math.sqrt(this.dot(this));
     }
     dot(other: Vec2): number {
-        return this.x * other.x + this.y * other.y;
+        return this._x * other._x + this._y * other._y;
     }
     dotC(x: number, y: number): number {
-        return this.x * x + this.y * y;
+        return this._x * x + this._y * y;
     }
     angle(other: Vec2): number {
         const c = this.length() * other.length();
@@ -632,7 +653,7 @@ export class Vec2 {
         return Math.acos(EMath.clamp(this.dot(other) / c, -1, 1));
     }
     signedAngle(other: Vec2): number {
-        return Math.atan2(this.x * other.y - this.y * other.x, this.dot(other));
+        return Math.atan2(this._x * other._y - this._y * other._x, this.dot(other));
     }
     dist(other: Vec2): number {
         return this.sub(other).length();
@@ -641,201 +662,223 @@ export class Vec2 {
         return this.subC(x, y).length();
     }
     strictEquals(other: Vec2): boolean {
-        return this.x == other.x && this.y == other.y;
+        return this._x == other._x && this._y == other._y;
     }
     isClose(other: Vec2, e = 1e-6): boolean {
-        return EMath.isClose(this.x, other.x, e) && EMath.isClose(this.y, other.y, e);
+        return EMath.isClose(this._x, other._x, e) && EMath.isClose(this._y, other._y, e);
     }
     isZero(e = 1e-6): boolean {
-        return EMath.isZero(this.x, e) && EMath.isZero(this.y, e);
+        return EMath.isZero(this._x, e) && EMath.isZero(this._y, e);
     }
     theta(): number {
-        return Math.atan2(this.y, this.x);
+        return Math.atan2(this._y, this._x);
     }
 
     // Operations
     add(other: Vec2): Vec2 {
-        return new Vec2(this.x + other.x, this.y + other.y);
+        return new Vec2(this._x + other._x, this._y + other._y);
     }
     addSelf(other: Vec2): this {
-        this.x += other.x;
-        this.y += other.y;
+        this._x += other._x;
+        this._y += other._y;
+        this.mutate();
         return this;
     }
     addC(x: number, y: number): Vec2 {
-        return new Vec2(this.x + x, this.y + y);
+        return new Vec2(this._x + x, this._y + y);
     }
     addSelfC(x: number, y: number): this {
-        this.x += x;
-        this.y += y;
+        this._x += x;
+        this._y += y;
+        this.mutate();
         return this;
     }
     addF(n: number): Vec2 {
-        return new Vec2(this.x + n, this.y + n);
+        return new Vec2(this._x + n, this._y + n);
     }
     addSelfF(n: number): this {
-        this.x += n;
-        this.y += n;
+        this._x += n;
+        this._y += n;
+        this.mutate();
         return this;
     }
     addScaled(other: Vec2, s: number): Vec2 {
         return this.clone().addScaledSelf(other, s);
     }
     addScaledSelf(other: Vec2, s: number): this {
-        this.x += other.x * s;
-        this.y += other.y * s;
+        this._x += other._x * s;
+        this._y += other._y * s;
+        this.mutate();
         return this;
     }
     addScaledC(x: number, y: number, s: number): Vec2 {
         return this.clone().addScaledSelfC(x, y, s);
     }
     addScaledSelfC(x: number, y: number, s: number): this {
-        this.x += x * s;
-        this.y += y * s;
+        this._x += x * s;
+        this._y += y * s;
+        this.mutate();
         return this;
     }
     sub(other: Vec2): Vec2 {
-        return new Vec2(this.x - other.x, this.y - other.y);
+        return new Vec2(this._x - other._x, this._y - other._y);
     }
     subSelf(other: Vec2): this {
-        this.x -= other.x;
-        this.y -= other.y;
+        this._x -= other._x;
+        this._y -= other._y;
+        this.mutate();
         return this;
     }
     subC(x: number, y: number): Vec2 {
-        return new Vec2(this.x - x, this.y - y);
+        return new Vec2(this._x - x, this._y - y);
     }
     subSelfC(x: number, y: number): this {
-        this.x -= x;
-        this.y -= y;
+        this._x -= x;
+        this._y -= y;
+        this.mutate();
         return this;
     }
     subF(n: number): Vec2 {
-        return new Vec2(this.x - n, this.y - n);
+        return new Vec2(this._x - n, this._y - n);
     }
     subSelfF(n: number): this {
-        this.x -= n;
-        this.y -= n;
+        this._x -= n;
+        this._y -= n;
+        this.mutate();
         return this;
     }
     rsub(other: Vec2): Vec2 {
-        return new Vec2(other.x - this.x, other.y - this.y);
+        return new Vec2(other._x - this._x, other._y - this._y);
     }
     rsubSelf(other: Vec2): this {
-        this.x = other.x - this.x;
-        this.y = other.y - this.y;
+        this._x = other._x - this._x;
+        this._y = other._y - this._y;
+        this.mutate();
         return this;
     }
     rsubC(x: number, y: number): Vec2 {
-        return new Vec2(x - this.x, y - this.y);
+        return new Vec2(x - this._x, y - this._y);
     }
     rsubSelfC(x: number, y: number): this {
-        this.x = x - this.x;
-        this.y = y - this.y;
+        this._x = x - this._x;
+        this._y = y - this._y;
+        this.mutate();
         return this;
     }
     rsubF(n: number): Vec2 {
-        return new Vec2(n - this.x, n - this.y);
+        return new Vec2(n - this._x, n - this._y);
     }
     rsubSelfF(n: number): this {
-        this.x = n - this.x;
-        this.y = n - this.y;
+        this._x = n - this._x;
+        this._y = n - this._y;
         return this;
     }
     mul(other: Vec2): Vec2 {
-        return new Vec2(this.x * other.x, this.y * other.y);
+        return new Vec2(this._x * other._x, this._y * other._y);
     }
     mulSelf(other: Vec2): this {
-        this.x *= other.x;
-        this.y *= other.y;
+        this._x *= other._x;
+        this._y *= other._y;
+        this.mutate();
         return this;
     }
     mulC(x: number, y: number): Vec2 {
-        return new Vec2(this.x * x, this.y * y);
+        return new Vec2(this._x * x, this._y * y);
     }
     mulSelfC(x: number, y: number): this {
-        this.x *= x;
-        this.y *= y;
+        this._x *= x;
+        this._y *= y;
+        this.mutate();
         return this;
     }
     mulF(n: number): Vec2 {
-        return new Vec2(this.x * n, this.y * n);
+        return new Vec2(this._x * n, this._y * n);
     }
     mulSelfF(n: number): this {
-        this.x *= n;
-        this.y *= n;
+        this._x *= n;
+        this._y *= n;
+        this.mutate();
         return this;
     }
     div(other: Vec2): Vec2 {
-        return new Vec2(this.x / other.x, this.y / other.y);
+        return new Vec2(this._x / other._x, this._y / other._y);
     }
     divSelf(other: Vec2): this {
-        this.x /= other.x;
-        this.y /= other.y;
+        this._x /= other._x;
+        this._y /= other._y;
+        this.mutate();
         return this;
     }
     divC(x: number, y: number): Vec2 {
-        return new Vec2(this.x / x, this.y / y);
+        return new Vec2(this._x / x, this._y / y);
     }
     divSelfC(x: number, y: number): this {
-        this.x /= x;
-        this.y /= y;
+        this._x /= x;
+        this._y /= y;
+        this.mutate();
         return this;
     }
     divF(n: number): Vec2 {
-        return new Vec2(this.x / n, this.y / n);
+        return new Vec2(this._x / n, this._y / n);
     }
     divSelfF(n: number): this {
-        this.x /= n;
-        this.y /= n;
+        this._x /= n;
+        this._y /= n;
+        this.mutate();
         return this;
     }
     rdiv(other: Vec2): Vec2 {
-        return new Vec2(other.x / this.x, other.y / this.y);
+        return new Vec2(other._x / this._x, other._y / this._y);
     }
     rdivSelf(other: Vec2): this {
-        this.x = other.x / this.x;
-        this.y = other.y / this.y;
+        this._x = other._x / this._x;
+        this._y = other._y / this._y;
+        this.mutate();
         return this;
     }
     rdivC(x: number, y: number): Vec2 {
-        return new Vec2(x / this.x, y / this.y);
+        return new Vec2(x / this._x, y / this._y);
     }
     rdivSelfC(x: number, y: number): this {
-        this.x = x / this.x;
-        this.y = y / this.y;
+        this._x = x / this._x;
+        this._y = y / this._y;
+        this.mutate();
         return this;
     }
     rdivF(n: number): Vec2 {
-        return new Vec2(n / this.x, n / this.y);
+        return new Vec2(n / this._x, n / this._y);
     }
     rdivSelfF(n: number): this {
-        this.x = n / this.x;
-        this.y = n / this.y;
+        this._x = n / this._x;
+        this._y = n / this._y;
+        this.mutate();
         return this;
     }
     neg(): Vec2 {
-        return new Vec2(-this.x, -this.y);
+        return new Vec2(-this._x, -this._y);
     }
     negSelf(): this {
-        this.x = -this.x;
-        this.y = -this.y;
+        this._x = -this._x;
+        this._y = -this._y;
+        this.mutate();
         return this;
     }
     lerp(other: Vec2, t: number): Vec2 {
         return this.clone().lerpSelf(other, t);
     }
     lerpSelf(other: Vec2, t: number): this {
-        this.x += (other.x - this.x) * t;
-        this.y += (other.y - this.y) * t;
+        this._x += (other._x - this._x) * t;
+        this._y += (other._y - this._y) * t;
+        this.mutate();
         return this;
     }
     lerpC(x: number, y: number, t: number): Vec2 {
         return this.clone().lerpSelfC(x, y, t);
     }
     lerpSelfC(x: number, y: number, t: number): this {
-        this.x += (x - this.x) * t;
-        this.y += (y - this.y) * t;
+        this._x += (x - this._x) * t;
+        this._y += (y - this._y) * t;
+        this.mutate();
         return this;
     }
     norm(): Vec2 {
@@ -885,8 +928,9 @@ export class Vec2 {
         return this.clone().mapSelf(method);
     }
     mapSelf(method: (x: number, i: number) => number): this {
-        this.x = method(this.x, 0);
-        this.y = method(this.y, 1);
+        this._x = method(this._x, 0);
+        this._y = method(this._y, 1);
+        this.mutate();
         return this;
     }
     rotate(a: number): Vec2 {
@@ -895,8 +939,9 @@ export class Vec2 {
     rotateSelf(a: number) : this {
         const s = Math.sin(a), c = Math.cos(a);
         const x = this.x, y = this.y;
-        this.x = x * c - y * s;
-        this.y = x * s + y * c;
+        this._x = x * c - y * s;
+        this._y = x * s + y * c;
+        this.mutate();
         return this;
     }
 }
@@ -1379,6 +1424,15 @@ export class Camera3D {
     lookAt(p: Vec3) {
         let f = this.position.look(p);
         this.rotation = new Vec3(f.pitch(), f.yaw(), 0);
+    }
+}
+
+export class Camera2D {
+    position: Vec2;
+    size: Vec2;
+    constructor(position?: Vec2, size?: Vec2) {
+        this.position = position ?? Vec2.zero();
+        this.size = size ?? Vec2.one();
     }
 }
 
@@ -2796,6 +2850,58 @@ export class RenderLoop {
         }
         render();
         return this;
+    }
+}
+
+
+//////////
+//  AI  //
+//////////
+export abstract class LayerActivation {
+    abstract forward(z: number): number;
+    abstract derivative(a: number, z: number): number;
+}
+
+export class SigmoidActivation extends LayerActivation {
+    forward(z: number) { return 1/(1+Math.exp(-z)); }
+    derivative(a: number, z: number) { return a * (1 - a); }
+}
+
+export class ReLuActivation extends LayerActivation {
+    forward(z: number) { return Math.max(z, 0); }
+    derivative(a: number, z: number) { return z > 0 ? 1 : 0; }
+}
+
+export class LinearActivation extends LayerActivation {
+    forward(z: number) { return z; }
+    derivative(a: number, z: number) { return 1; }
+}
+
+
+
+export class Layer {
+    values: Float32Array;
+    weights: Float32Array[];
+    biases: Float32Array;
+    constructor(public inputSize: number, public size: number, public activation: LayerActivation) {
+        this.values = new Float32Array(size);
+        this.weights = [];
+        for(let i=0; i<size; i++)
+            this.weights.push(new Float32Array(inputSize));
+        this.biases = new Float32Array(size);
+    }
+    forward(input: Float32Array) {
+        for(let i=0; i<this.size; i++) {
+            let weightedSum = this.biases[i]!;
+            for(let j=0; j<this.inputSize; j++) {
+                weightedSum += input[j]! * this.weights[i]![j]!;
+            }
+            let value = this.activation.forward(weightedSum);
+            this.values[i] = value;
+        }
+    }
+    backward(output: Float32Array) {
+
     }
 }
 
