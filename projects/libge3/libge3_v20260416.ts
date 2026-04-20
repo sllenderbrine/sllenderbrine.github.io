@@ -25,6 +25,20 @@ export abstract class EMath {
     }
 }
 
+///////////////////
+//  ARRAY UTILS  //
+///////////////////
+export abstract class ArrayUtils {
+    static shuffleSelf<T>(array: T[]): T[] {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i]!, array[j]!] = [array[j]!, array[i]!];
+        }
+        return array;
+    }
+}
+
+
 //////////////////////
 //  VECTOR CLASSES  //
 //////////////////////
@@ -33,19 +47,17 @@ export class Vec3 {
     _y: number;
     _z: number;
     onMutate?: () => void;
-    constructor(v: Vec3 | {x: number, y: number, z: number}, onMutate?: () => void);
-    constructor(x: number, y: number, z: number, onMutate?: () => void);
-    constructor(x: number | Vec3 | {x:number, y:number, z:number}, y?: number | ((index: number) => void), z?: number, onMutate?: () => void) {
+    constructor(v: Vec3 | {x: number, y: number, z: number});
+    constructor(x: number, y: number, z: number);
+    constructor(x: number | Vec3 | {x:number, y:number, z:number}, y?: number, z?: number) {
         if(typeof x === "object") {
             this._x = x.x;
             this._y = x.y;
             this._z = x.z;
-            this.onMutate = y as (() => void);
         } else {
             this._x = x;
             this._y = y! as number;
             this._z = z!;
-            this.onMutate = onMutate;
         }
     }
 
@@ -149,23 +161,23 @@ export class Vec3 {
     crossC(x: number, y: number, z: number): Vec3 {
         return new Vec3(this._y * z - this._z * y, - (this._x * z - this._z * x), this._x * y - this._y * x);
     }
-    angle(other: Vec3): number {
+    angleTo(other: Vec3): number {
         const c = this.length() * other.length();
         if(c === 0)
             return 0;
         return Math.acos(EMath.clamp(this.dot(other) / c, -1, 1));
     }
-    signedAngle(other: Vec3, reference: Vec3 = Vec3.yAxis()): number {
-        const angle = this.angle(other);
+    signedAngleTo(other: Vec3, reference: Vec3 = Vec3.yAxis()): number {
+        const angle = this.angleTo(other);
         const normal = this.cross(other).normSelf();
         if(normal.dot(reference.norm()) > 0)
             return -angle;
         return angle;
     }
-    dist(other: Vec3): number {
+    distTo(other: Vec3): number {
         return this.sub(other).length();
     }
-    distC(x: number, y: number, z: number): number {
+    distToC(x: number, y: number, z: number): number {
         return this.subC(x, y, z).length();
     }
     strictEquals(other: Vec3): boolean {
@@ -557,17 +569,15 @@ export class Vec3 {
 }
 
 export class Vec2 {
-    constructor(v: Vec2 | {x: number, y: number}, onMutate?: () => void);
-    constructor(x: number, y: number, onMutate?: () => void);
-    constructor(x: number | {x:number, y:number}, y?: number | (() => void), onMutate?: () => void) {
+    constructor(v: Vec2 | {x: number, y: number});
+    constructor(x: number, y: number);
+    constructor(x: number | {x:number, y:number}, y?: number) {
         if(typeof x === "object") {
             this._x = x.x;
             this._y = x.y;
-            this.onMutate = y as (() => void);
         } else {
             this._x = x;
             this._y = y as number;
-            this.onMutate = onMutate;
         }
     }
 
@@ -646,19 +656,19 @@ export class Vec2 {
     dotC(x: number, y: number): number {
         return this._x * x + this._y * y;
     }
-    angle(other: Vec2): number {
+    angleTo(other: Vec2): number {
         const c = this.length() * other.length();
         if(c === 0)
             return 0;
         return Math.acos(EMath.clamp(this.dot(other) / c, -1, 1));
     }
-    signedAngle(other: Vec2): number {
+    signedAngleTo(other: Vec2): number {
         return Math.atan2(this._x * other._y - this._y * other._x, this.dot(other));
     }
-    dist(other: Vec2): number {
+    distTo(other: Vec2): number {
         return this.sub(other).length();
     }
-    distC(x: number, y: number): number {
+    distToC(x: number, y: number): number {
         return this.subC(x, y).length();
     }
     strictEquals(other: Vec2): boolean {
@@ -1088,26 +1098,7 @@ export abstract class Mat3 {
 ///////////////////
 //  NOISE CLASS  //
 ///////////////////
-const gradients2D: Vec2[] = [];
-for(let i=0;i<12;i++) {
-    const angle = 2 * Math.PI * i/12;
-    gradients2D.push(new Vec2(Math.cos(angle), Math.sin(angle)));
-}
-const gradients3D: Vec3[] = [];
-for(let i=0;i<16;i++) {
-    const y = 1 - (2*i)/(15);
-    const r = Math.sqrt(1-y*y);
-    const angle = i * Math.PI * (3-Math.sqrt(5));
-    gradients3D.push(new Vec3(
-        Math.cos(angle) * r,
-        y,
-        Math.sin(angle) * r,
-    ));
-}
 export abstract class Noise {
-    static fade(t: number) : number {
-        return t * t * t * (t * (t * 6 - 15) + 10);
-    }
     static randomConstant3(a: number, b: number, c: number) : number {
         const it = (a * 2394823549) ^ (b * 43859742850) ^ (c * 23094565234);
         return EMath.pmod(it, 10000) / 10000;
@@ -1116,43 +1107,32 @@ export abstract class Noise {
         const it = (a * 2394823549) ^ (b * 43859742850) ^ (c * 23094565234) ^ (d * 8427824566);
         return EMath.pmod(it, 10000) / 10000;
     }
-    static getPerlinVector2D(x: number, y: number, seed = 0) : Vec2 {
-        return gradients2D[Math.floor(Noise.randomConstant3(seed, x, y) * gradients2D.length)]!;
+    static fade(t: number) : number {
+        return t * t * t * (t * (t * 6 - 15) + 10);
     }
-    static getPerlinVector3D(x: number, y: number, z: number, seed = 0) : Vec3 {
-        return gradients3D[Math.floor(Noise.randomConstant4(seed, x, y, z) * gradients3D.length)]!;
+    static generatePerlin2DGradients(count = 12) {
+        const gradients: Vec2[] = [];
+        for(let i=0; i<count; i++) {
+            const angle = 2 * Math.PI * i/count;
+            gradients.push(new Vec2(Math.cos(angle), Math.sin(angle)));
+        }
+        return gradients;
     }
-    static getVoronoiGridPosition2D(x: number, y: number, seed = 0, t = 1) : Vec2 {
-        return new Vec2(
-            x + t * Noise.randomConstant3(x, y, seed),
-            y + t * Noise.randomConstant3(x, y, seed+1)
-        );
+    static getPerlin2DVectorAt(x: number, y: number, seed: number, gradients: Vec2[]) : Vec2 {
+        return gradients[Math.floor(this.randomConstant3(seed, x, y) * gradients.length)]!;
     }
-    static getVoronoiGridValue2D(x: number, y: number, seed = 0) : number {
-        return Noise.randomConstant3(x, y, seed+2);
-    }
-    static getVoronoiGridPosition3D(x: number, y: number, z: number, seed = 0, t = 1) : Vec3 {
-        return new Vec3(
-            x + t * Noise.randomConstant4(x, y, z, seed),
-            y + t * Noise.randomConstant4(y, z, x, seed+1),
-            z + t * Noise.randomConstant4(z, x, y, seed+2),
-        );
-    }
-    static getVoronoiGridValue3D(x: number, y: number, z: number, seed = 0) : number {
-        return Noise.randomConstant4(x, y, z, seed+3);
-    }
-    static perlinNoise2D(x: number, y: number, seed = 0) : number {
-        const getPerlinVector2D = Noise.getPerlinVector2D;
+    static getPerlin2DValueAt(x: number, y: number, seed: number, gradients: Vec2[]) : number {
+        const getPerlin2DVectorAt = this.getPerlin2DVectorAt.bind(this);
         const lerp = EMath.lerp;
-        const fade = Noise.fade;
+        const fade = this.fade;
         const g0 = new Vec2(x, y).mapSelf(Math.floor);
         const g1 = new Vec2(g0).addSelfC(1, 1);
         const f0 = new Vec2(x, y).subSelf(g0);
         const f1 = new Vec2(x, y).subSelf(g1);
-        const cAA = getPerlinVector2D(g0.x, g0.y, seed).dot(f0);
-        const cAB = getPerlinVector2D(g0.x, g1.y, seed).dotC(f0.x, f1.y);
-        const cBA = getPerlinVector2D(g1.x, g0.y, seed).dotC(f1.x, f0.y);
-        const cBB = getPerlinVector2D(g1.x, g1.y, seed).dot(f1);
+        const cAA = getPerlin2DVectorAt(g0.x, g0.y, seed, gradients).dot(f0);
+        const cAB = getPerlin2DVectorAt(g0.x, g1.y, seed, gradients).dotC(f0.x, f1.y);
+        const cBA = getPerlin2DVectorAt(g1.x, g0.y, seed, gradients).dotC(f1.x, f0.y);
+        const cBB = getPerlin2DVectorAt(g1.x, g1.y, seed, gradients).dot(f1);
         const tx = fade(f0.x);
         const ty = fade(f0.y);
         const cA = lerp(cAA, cBA, tx);
@@ -1160,22 +1140,39 @@ export abstract class Noise {
         const c = lerp(cA, cB, ty);
         return EMath.clamp(c * 0.5 + 0.5, 0, 1);
     }
-    static perlinNoise3D(x: number, y: number, z: number, seed = 0) : number {
-        const getPerlinVector3D = Noise.getPerlinVector3D;
+    static generatePerlin3DGradients(count = 16) {
+        const gradients: Vec3[] = [];
+        for(let i=0;i<count;i++) {
+            const y = 1 - (2*i)/(count-1);
+            const r = Math.sqrt(1-y*y);
+            const angle = i * Math.PI * (3-Math.sqrt(5));
+            gradients.push(new Vec3(
+                Math.cos(angle) * r,
+                y,
+                Math.sin(angle) * r,
+            ));
+        }
+        return gradients;
+    }
+    static getPerlin3DVectorAt(x: number, y: number, z: number, seed: number, gradients: Vec3[]) : Vec3 {
+        return gradients[Math.floor(this.randomConstant4(seed, x, y, z) * gradients.length)]!;
+    }
+    static getPerlin3DValueAt(x: number, y: number, z: number, seed: number, gradients: Vec3[]) : number {
+        const getPerlin3DVectorAt = this.getPerlin3DVectorAt.bind(this);
         const lerp = EMath.lerp;
-        const fade = Noise.fade;
+        const fade = this.fade;
         const g0 = new Vec3(x, y, z).mapSelf(Math.floor);
         const g1 = new Vec3(g0).addSelfC(1, 1, 1);
         const f0 = new Vec3(x, y, z).subSelf(g0);
         const f1 = new Vec3(x, y, z).subSelf(g1);
-        const cAAA = getPerlinVector3D(g0.x, g0.y, g0.z, seed).dot(f0);
-        const cAAB = getPerlinVector3D(g0.x, g0.y, g1.z, seed).dotC(f0.x, f0.y, f1.z);
-        const cABA = getPerlinVector3D(g0.x, g1.y, g0.z, seed).dotC(f0.x, f1.y, f0.z);
-        const cABB = getPerlinVector3D(g0.x, g1.y, g1.z, seed).dotC(f0.x, f1.y, f1.z);
-        const cBAA = getPerlinVector3D(g1.x, g0.y, g0.z, seed).dotC(f1.x, f0.y, f0.z);
-        const cBAB = getPerlinVector3D(g1.x, g0.y, g1.z, seed).dotC(f1.x, f0.y, f1.z);
-        const cBBA = getPerlinVector3D(g1.x, g1.y, g0.z, seed).dotC(f1.x, f1.y, f0.z);
-        const cBBB = getPerlinVector3D(g1.x, g1.y, g1.z, seed).dot(f1);
+        const cAAA = getPerlin3DVectorAt(g0.x, g0.y, g0.z, seed, gradients).dot(f0);
+        const cAAB = getPerlin3DVectorAt(g0.x, g0.y, g1.z, seed, gradients).dotC(f0.x, f0.y, f1.z);
+        const cABA = getPerlin3DVectorAt(g0.x, g1.y, g0.z, seed, gradients).dotC(f0.x, f1.y, f0.z);
+        const cABB = getPerlin3DVectorAt(g0.x, g1.y, g1.z, seed, gradients).dotC(f0.x, f1.y, f1.z);
+        const cBAA = getPerlin3DVectorAt(g1.x, g0.y, g0.z, seed, gradients).dotC(f1.x, f0.y, f0.z);
+        const cBAB = getPerlin3DVectorAt(g1.x, g0.y, g1.z, seed, gradients).dotC(f1.x, f0.y, f1.z);
+        const cBBA = getPerlin3DVectorAt(g1.x, g1.y, g0.z, seed, gradients).dotC(f1.x, f1.y, f0.z);
+        const cBBB = getPerlin3DVectorAt(g1.x, g1.y, g1.z, seed, gradients).dot(f1);
         const tx = fade(f0.x);
         const ty = fade(f0.y);
         const tz = fade(f0.z);
@@ -1188,51 +1185,68 @@ export abstract class Noise {
         const c = lerp(cA, cB, tz);
         return EMath.clamp(c * 0.5 + 0.5, 0, 1);
     }
-    static voronoiNoise2D(x: number, y: number, seed = 0, t = 1) {
-        let p = new Vec2(x, y);
-        const g0 = p.map(Math.floor);
-        let data = {
-            pointDistance: Infinity,
-            value: 0,
-            gridPos: Vec2.zero(),
-        };
-        for(let xoff=-1;xoff<=1;xoff++) {
-            for(let yoff=-1;yoff<=1;yoff++) {
-                const gridPos = g0.addC(xoff, yoff);
-                const pointPos = Noise.getVoronoiGridPosition2D(gridPos.x, gridPos.y, seed, t);
-                const dist = p.dist(pointPos);
-                if(dist<data.pointDistance) {
-                    data.gridPos = gridPos;
-                    data.pointDistance = dist;
-                    data.value = Noise.getVoronoiGridValue2D(gridPos.x, gridPos.y, seed);
+    static getWorley2DPositionAtGrid(x: number, y: number, seed: number, offsetAmp: number) {
+        const xo = (this.randomConstant3(x, y, seed+1) - 0.5) * offsetAmp;
+        const yo = (this.randomConstant3(x, y, seed+2) - 0.5) * offsetAmp;
+        return new Vec2(x + xo, y + yo);
+    }
+    static getWorley2DValueAtGrid(x: number, y: number, seed: number) {
+        return this.randomConstant3(x, y, seed);
+    }
+    static getWorley2DAt(x: number, y: number, seed: number, offsetAmp: number, search?: number) {
+        search = search ?? Math.ceil(offsetAmp) + 1;
+        const gx = Math.floor(x);
+        const gy = Math.floor(y);
+        let minDist = Infinity;
+        let minDist2 = Infinity;
+        let value = 0;
+        let value2 = 0;
+        for(let ix=gx-search; ix<=gx+search; ix++) {
+            for(let iy=gy-search; iy<=gy+search; iy++) {
+                let point = this.getWorley2DPositionAtGrid(ix, iy, seed, offsetAmp);
+                let dist = point.distToC(x, y);
+                if(dist < minDist) {
+                    minDist2 = minDist;
+                    value2 = value;
+                    minDist = dist;
+                    value = this.getWorley2DValueAtGrid(ix, iy, seed);
+                } else if(dist < minDist2) {
+                    minDist2 = dist;
+                    value2 = this.getWorley2DValueAtGrid(ix, iy, seed);
                 }
             }
         }
-        return data;
+        return { value, value2, minDist, minDist2 };
     }
-    static voronoiNoise3D(x: number, y: number, z: number, seed = 0, t = 1) {
-        let p = new Vec3(x, y, z);
-        const g0 = p.map(Math.floor);
-        let data = {
-            pointDistance: Infinity,
-            value: 0,
-            gridPos: Vec3.zero(),
-        };
-        for(let xoff=-1;xoff<=1;xoff++) {
-            for(let yoff=-1;yoff<=1;yoff++) {
-                for(let zoff=-1;zoff<=1;zoff++) {
-                    const gridPos = g0.addC(xoff, yoff, zoff);
-                    const pointPos = Noise.getVoronoiGridPosition3D(gridPos.x, gridPos.y, gridPos.z, seed, t);
-                    const dist = p.dist(pointPos);
-                    if(dist<data.pointDistance) {
-                        data.gridPos = gridPos;
-                        data.pointDistance = dist;
-                        data.value = Noise.getVoronoiGridValue3D(gridPos.x, gridPos.y, gridPos.z, seed);
+    static getWorley3DPositionAtGrid(x: number, y: number, z: number, seed: number, offsetAmp: number) {
+        const xo = (this.randomConstant4(x, y, z, seed+1) - 0.5) * offsetAmp;
+        const yo = (this.randomConstant4(x, y, z, seed+2) - 0.5) * offsetAmp;
+        const zo = (this.randomConstant4(x, y, z, seed+3) - 0.5) * offsetAmp;
+        return new Vec3(x + xo, y + yo, z + zo);
+    }
+    static getWorley3DValueAtGrid(x: number, y: number, z: number, seed: number) {
+        return this.randomConstant4(x, y, z, seed);
+    }
+    static getWorley3DValueAt(x: number, y: number, z: number, seed: number, offsetAmp: number, search?: number) {
+        search = search ?? Math.ceil(offsetAmp) + 1;
+        const gx = Math.floor(x);
+        const gy = Math.floor(y);
+        const gz = Math.floor(z);
+        let minDist = Infinity;
+        let value = 0;
+        for(let ix=gx-search; ix<=gx+search; ix++) {
+            for(let iy=gy-search; iy<=gy+search; iy++) {
+                for(let iz=gz-search; iz<=gz+search; iz++) {
+                    let point = this.getWorley3DPositionAtGrid(ix, iy, iz, seed, offsetAmp);
+                    let dist = point.distToC(x, y, z);
+                    if(dist < minDist) {
+                        minDist = dist;
+                        value = this.getWorley3DValueAtGrid(ix, iy, iz, seed);
                     }
                 }
             }
         }
-        return data;
+        return value;
     }
 }
 
@@ -1241,6 +1255,15 @@ export abstract class Noise {
 //  CAMERA CLASSES  //
 //////////////////////
 export class Camera3D {
+    constructor(position?: Vec3, fovY?: number, aspect?: number, near?: number, far?: number) {
+        this.position = position ?? Vec3.zero();
+        this.fovY = fovY ?? 95/180*Math.PI;
+        this.aspect = aspect ?? 1;
+        this.near = near ?? 0.1;
+        this.far = far ?? 10000;
+        this.rotation = Vec3.zero();
+    }
+
     private _fovY!: number;
     get fovY() {
         return this._fovY;
@@ -1359,66 +1382,68 @@ export class Camera3D {
 
     private _perspectiveMatrix: number[] = [];
     private _outdatedPerspectiveMatrix?: boolean = true;
+    public perspectiveMatrixObserver = new Signal({ onConnect: conn => conn.fire(this.perspectiveMatrix) });
     get perspectiveMatrix() {
-        if(this._outdatedPerspectiveMatrix) {
-            this._perspectiveMatrix = Mat4.perspective(this._fovY, this._aspect, this._near, this._far);
-            delete this._outdatedPerspectiveMatrix;
-            this.perspectiveMatrixChangeEvent.fire(this._perspectiveMatrix);
-        }
+        this.updatePerspectiveMatrix();
         return this._perspectiveMatrix;
+    }
+    updatePerspectiveMatrix() {
+        if(this._outdatedPerspectiveMatrix != true)
+            return;
+        this._perspectiveMatrix = Mat4.perspective(this._fovY, this._aspect, this._near, this._far);
+        delete this._outdatedPerspectiveMatrix;
+        this.perspectiveMatrixObserver.fire(this._perspectiveMatrix);
     }
 
     private _translationMatrix: number[] = [];
     private _outdatedTranslationMatrix?: boolean = true;
+    public translationMatrixObserver = new Signal({ onConnect: conn => conn.fire(this.translationMatrix) });
     get translationMatrix() {
-        if(this._outdatedTranslationMatrix) {
-            this._translationMatrix = Mat4.translate(-this._position.x * this._worldScale, -this._position.y * this._worldScale, -this._position.z * this._worldScale);
-            delete this._outdatedTranslationMatrix;
-            this.translationMatrixChangeEvent.fire(this._viewMatrix);
-        }
+        this.updateTranslationMatrix();
         return this._translationMatrix;
+    }
+    updateTranslationMatrix() {
+        if(this._outdatedTranslationMatrix != true)
+            return;
+        this._translationMatrix = Mat4.translate(-this._position.x * this._worldScale, -this._position.y * this._worldScale, -this._position.z * this._worldScale);
+        delete this._outdatedTranslationMatrix;
+        this.translationMatrixObserver.fire(this._viewMatrix);
     }
 
     private _rotationMatrix: number[] = [];
     private _outdatedRotationMatrix?: boolean = true;
+    public rotationMatrixObserver = new Signal({ onConnect: conn => conn.fire(this.rotationMatrix) });
     get rotationMatrix() {
-        if(this._outdatedRotationMatrix) {
-            this._rotationMatrix = Mat4.multiply(
-                Mat4.rotateZ(-this._rotation.z),
-                Mat4.multiply(
-                    Mat4.rotateX(-this._rotation.x),
-                    Mat4.rotateY(-this._rotation.y),
-                )
-            );
-            delete this._outdatedRotationMatrix;
-            this.rotationMatrixChangeEvent.fire(this._viewMatrix);
-        }
+        this.updateRotationMatrix();
         return this._rotationMatrix;
+    }
+    updateRotationMatrix() {
+        if(this._outdatedRotationMatrix != true)
+            return;
+        this._rotationMatrix = Mat4.multiply(
+            Mat4.rotateZ(-this._rotation.z),
+            Mat4.multiply(
+                Mat4.rotateX(-this._rotation.x),
+                Mat4.rotateY(-this._rotation.y),
+            )
+        );
+        delete this._outdatedRotationMatrix;
+        this.rotationMatrixObserver.fire(this._viewMatrix);
     }
 
     private _viewMatrix: number[] = [];
     private _outdatedViewMatrix?: boolean = true;
+    public viewMatrixObserver = new Signal({ onConnect: conn => conn.fire(this.viewMatrix) });
     get viewMatrix() {
-        if(this._outdatedViewMatrix) {
-            this._viewMatrix = Mat4.multiply(this.rotationMatrix, this.translationMatrix);
-            delete this._outdatedViewMatrix;
-            this.viewMatrixChangeEvent.fire(this._viewMatrix);
-        }
+        this.updateViewMatrix();
         return this._viewMatrix;
     }
-
-    public perspectiveMatrixChangeEvent = new Signal({ onConnect: conn => conn.fire(this.perspectiveMatrix) });
-    public viewMatrixChangeEvent = new Signal({ onConnect: conn => conn.fire(this.viewMatrix) });
-    public rotationMatrixChangeEvent = new Signal({ onConnect: conn => conn.fire(this.rotationMatrix) });
-    public translationMatrixChangeEvent = new Signal({ onConnect: conn => conn.fire(this.translationMatrix) });
-
-    constructor(position?: Vec3, fovY?: number, aspect?: number, near?: number, far?: number) {
-        this.position = position ?? Vec3.zero();
-        this.fovY = fovY ?? 95/180*Math.PI;
-        this.aspect = aspect ?? 1;
-        this.near = near ?? 0.1;
-        this.far = far ?? 10000;
-        this.rotation = Vec3.zero();
+    updateViewMatrix() {
+        if(this._outdatedViewMatrix != true)
+            return;
+        this._viewMatrix = Mat4.multiply(this.rotationMatrix, this.translationMatrix);
+        delete this._outdatedViewMatrix;
+        this.viewMatrixObserver.fire(this._viewMatrix);
     }
 
     lookAt(p: Vec3) {
@@ -1428,12 +1453,12 @@ export class Camera3D {
 }
 
 export class Camera2D {
-    position: Vec2;
-    size: Vec2;
     constructor(position?: Vec2, size?: Vec2) {
         this.position = position ?? Vec2.zero();
         this.size = size ?? Vec2.one();
     }
+    position: Vec2;
+    size: Vec2;
 }
 
 
@@ -1592,14 +1617,14 @@ export abstract class Physics2D {
             return {
                 inside: true,
                 collision: edge!,
-                distance: -edge!.dist(point),
+                distance: -edge!.distTo(point),
                 normal: normal!,
             }
         } else {
             dx = EMath.clamp(dx, -sizeX, sizeX);
             dy = EMath.clamp(dy, -sizeY, sizeY);
             let edge = center.addScaled(right, dx).addScaled(up, dy);
-            let dist = edge.dist(point);
+            let dist = edge.distTo(point);
             return {
                 inside: false,
                 collision: edge,
@@ -1621,7 +1646,7 @@ export abstract class Physics2D {
         return res;
     }
     static getCircleCircleCollision(pointA: Vec2, radiusA: number, pointB: Vec2, radiusB: number) {
-        let dist = pointA.dist(pointB) - radiusA - radiusB;
+        let dist = pointA.distTo(pointB) - radiusA - radiusB;
         let normal = pointA.look(pointB);
         let collision = pointA.addScaled(normal, radiusA);
         return {
@@ -1635,11 +1660,11 @@ export abstract class Physics2D {
         let dir = start.look(end);
         let off = point.sub(start);
         let t = off.dot(dir);
-        let maxT = end.dist(start);
+        let maxT = end.distTo(start);
         t = EMath.clamp(t, 0, maxT);
         let collision = start.addScaled(dir, t);
         let normal = collision.look(point);
-        let dist = collision.dist(point) - radius;
+        let dist = collision.distTo(point) - radius;
         return {
             inside: dist <= 0,
             collision,
@@ -1758,8 +1783,13 @@ export abstract class Physics3D {
 }
 
 
+export class PhysicsLab2DPart {
+    constructor(public lab: PhysicsLab2D) {
+
+    }
+}
 export class PhysicsLab2D {
-    objectAddedEvent: Signal<[obj: any]> = new Signal();
+    objectObserver: Signal<[obj: any]> = new Signal({onConnect:(conn)=>{for(const obj of this.objects)conn.fire(obj);}});
     objects: any = [];
     constructor() {
 
@@ -1785,7 +1815,7 @@ export class PhysicsLab2D {
         rect.type = "rect";
         rect.collision = null;
         this.objects.push(rect);
-        this.objectAddedEvent.fire(rect);
+        this.objectObserver.fire(rect);
         return rect;
     }
     createBall(position: Vec2, radius: number) {
@@ -1801,7 +1831,7 @@ export class PhysicsLab2D {
         ball.type = "ball";
         ball.collision = null;
         this.objects.push(ball);
-        this.objectAddedEvent.fire(ball);
+        this.objectObserver.fire(ball);
         return ball;
     }
     update(dt: number) {
@@ -2361,9 +2391,6 @@ export class TextureAtlas {
 ///////////////////
 //  COLOR CLASS  //
 ///////////////////
-/**
- * Represents a color and a transparency value. Implements lazy conversion between RGB and HSV space.
-*/
 export class Color {
     constructor();
     constructor(r: number, g: number, b: number);
@@ -2457,8 +2484,23 @@ export class Color {
         }
     }
 
+    onMutate?: () => void;
+    mutate() {
+        if(this.onMutate)
+            this.onMutate();
+    }
+
     clone(): Color {
         return new Color(this);
+    }
+
+    static decimalToRGB(d: number) {
+        d = EMath.clamp(d, 0, 1-1e-6);
+        let index = Math.floor(d * 16777216);
+        let r = (index >> 16) & 0xFF;
+        let g = (index >> 8) & 0xFF;
+        let b = (index) & 0xFF;
+        return new Color(r, g, b);
     }
 
     _outdatedRgb?: boolean;
@@ -2470,14 +2512,13 @@ export class Color {
         value = EMath.clamp(Math.round(value), 0, 255);
         if(value == this._r)
             return;
-        if(this._outdatedRgb)
-            this._updateRgb();
+        this.updateRgb();
         this._r = value;
         this._outdatedHsv = true;
+        this.mutate();
     }
     get r() {
-        if(this._outdatedRgb)
-            this._updateRgb();
+        this.updateRgb();
         return this._r;
     }
 
@@ -2489,14 +2530,13 @@ export class Color {
         value = EMath.clamp(Math.round(value), 0, 255);
         if(value == this._g)
             return;
-        if(this._outdatedRgb)
-            this._updateRgb();
+        this.updateRgb();
         this._g = value;
         this._outdatedHsv = true;
+        this.mutate();
     }
     get g() {
-        if(this._outdatedRgb)
-            this._updateRgb();
+        this.updateRgb();
         return this._g;
     }
     
@@ -2508,18 +2548,19 @@ export class Color {
         value = EMath.clamp(Math.round(value), 0, 255);
         if(value == this._b)
             return;
-        if(this._outdatedRgb)
-            this._updateRgb();
+        this.updateRgb();
         this._b = value;
         this._outdatedHsv = true;
+        this.mutate();
     }
     get b() {
-        if(this._outdatedRgb)
-            this._updateRgb();
+        this.updateRgb();
         return this._b;
     }
 
-    _updateRgb() {
+    updateRgb() {
+        if(this._outdatedRgb != true)
+            return;
         const {_hue:h, _sat:s, _val:v} = this;
         const c = v / 100 * s / 100;
         const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
@@ -2548,14 +2589,13 @@ export class Color {
         value = EMath.pmod(value, 360);
         if(value == this._hue)
             return;
-        if(this._outdatedHsv)
-            this._updateHsv();
+        this.updateHsv();
         this._hue = value;
         this._outdatedRgb = true;
+        this.mutate();
     }
     get hue() {
-        if(this._outdatedHsv)
-            this._updateHsv();
+        this.updateHsv();
         return this._hue;
     }
 
@@ -2567,14 +2607,13 @@ export class Color {
         value = EMath.clamp(value, 0, 100);
         if(value == this._sat)
             return;
-        if(this._outdatedHsv)
-            this._updateHsv();
+        this.updateHsv();
         this._sat = value;
         this._outdatedRgb = true;
+        this.mutate();
     }
     get sat() {
-        if(this._outdatedHsv)
-            this._updateHsv();
+        this.updateHsv();
         return this._sat;
     }
 
@@ -2586,18 +2625,19 @@ export class Color {
         value = EMath.clamp(value, 0, 100);
         if(value == this._val)
             return;
-        if(this._outdatedHsv)
-            this._updateHsv();
+        this.updateHsv();
         this._val = value;
         this._outdatedRgb = true;
+        this.mutate();
     }
     get val() {
-        if(this._outdatedHsv)
-            this._updateHsv();
+        this.updateHsv();
         return this._val;
     }
 
-    _updateHsv() {
+    updateHsv() {
+        if(this._outdatedHsv != true)
+            return;
         const max = Math.max(this.r, this.g, this.b);
         const min = Math.min(this.r, this.g, this.b);
         const delta = max - min;
@@ -2622,57 +2662,72 @@ export class Color {
     a = 1;
 
     strictEquals(other: Color) {
+        this.updateRgb();
+        other.updateRgb();
         return (
-            this.r == other.r
-            && this.g == other.g
-            && this.b == other.b
+            this._r == other._r
+            && this._g == other._g
+            && this._b == other._b
             && this.a == other.a
         );
     }
     isClose(other: Color, e = 1e-6) {
+        this.updateRgb();
+        other.updateRgb();
         return (
-            EMath.isClose(this.r, other.r, e)
-            && EMath.isClose(this.g, other.g, e)
-            && EMath.isClose(this.b, other.b, e)
+            EMath.isClose(this._r, other._r, e)
+            && EMath.isClose(this._g, other._g, e)
+            && EMath.isClose(this._b, other._b, e)
             && EMath.isClose(this.a, other.a, e)
         );
     }
     strictEqualsRgb(other: Color) {
+        this.updateRgb();
+        other.updateRgb();
         return (
-            this.r == other.r
-            && this.g == other.g
-            && this.b == other.b
+            this._r == other._r
+            && this._g == other._g
+            && this._b == other._b
         );
     }
     isCloseRgb(other: Color, e = 1e-6) {
+        this.updateRgb();
+        other.updateRgb();
         return (
-            EMath.isClose(this.r, other.r, e)
-            && EMath.isClose(this.g, other.g, e)
-            && EMath.isClose(this.b, other.b, e)
+            EMath.isClose(this._r, other._r, e)
+            && EMath.isClose(this._g, other._g, e)
+            && EMath.isClose(this._b, other._b, e)
         );
     }
     lerpRgba(other: Color, t: number): Color {
         return this.clone().lerpRgbaSelf(other, t);
     }
     lerpRgbaSelf(other: Color, t: number): this {
-        this.r = EMath.lerp(this.r, other.r, t);
-        this.g = EMath.lerp(this.g, other.g, t);
-        this.b = EMath.lerp(this.b, other.b, t);
+        this.updateRgb();
+        other.updateRgb();
+        this._r = EMath.lerp(this._r, other._r, t);
+        this._g = EMath.lerp(this._g, other._g, t);
+        this._b = EMath.lerp(this._b, other._b, t);
         this.a = EMath.lerp(this.a, other.a, t);
+        this.mutate();
         return this;
     }
     lerpHsva(other: Color, t: number): Color {
         return this.clone().lerpHsvaSelf(other, t);
     }
     lerpHsvaSelf(other: Color, t: number): this {
-        this.hue = EMath.lerp(this.hue, other.hue, t);
-        this.sat = EMath.lerp(this.sat, other.sat, t);
-        this.val = EMath.lerp(this.val, other.val, t);
+        this.updateHsv();
+        other.updateHsv();
+        this._hue = EMath.lerp(this._hue, other._hue, t);
+        this._sat = EMath.lerp(this._sat, other._sat, t);
+        this._val = EMath.lerp(this._val, other._val, t);
         this.a = EMath.lerp(this.a, other.a, t);
+        this.mutate();
         return this;
     }
     getIsForegroundWhite(threshold = 0.42) {
-        let {r, g, b} = this;
+        this.updateRgb();
+        let {_r:r, _g:g, _b:b} = this;
         r /= 255;
         g /= 255;
         b /= 255;
@@ -2690,20 +2745,6 @@ export class Color {
     }
     toHsvaArray(): [h: number, s: number, v: number, a: number] {
         return [this.hue, this.sat, this.val, this.a];
-    }
-}
-
-
-///////////////////
-//  ARRAY UTILS  //
-///////////////////
-export abstract class ArrayUtils {
-    static shuffleSelf<T>(array: T[]): T[] {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i]!, array[j]!] = [array[j]!, array[i]!];
-        }
-        return array;
     }
 }
 
@@ -2969,8 +3010,8 @@ export class IconPolygon2D {
             let vA = this.getVertex(index-1);
             let vB = this.getVertex(index);
             let vC = this.getVertex(index+1);
-            let tMaxA = vA.dist(vB);
-            let tMaxC = vC.dist(vB);
+            let tMaxA = vA.distTo(vB);
+            let tMaxC = vC.distTo(vB);
             if(indices.has(index-1)) tMaxA /= 2;
             if(indices.has(index+1)) tMaxC /= 2;
             let b1 = vB.addScaled(vB.look(vA), EMath.clamp(amount, 0, tMaxA));
@@ -2987,8 +3028,8 @@ export class IconPolygon2D {
             let vA = this.getVertex(index-1);
             let vB = this.getVertex(index);
             let vC = this.getVertex(index+1);
-            let tMaxA = vA.dist(vB) / 2;
-            let tMaxC = vC.dist(vB) / 2;
+            let tMaxA = vA.distTo(vB) / 2;
+            let tMaxC = vC.distTo(vB) / 2;
             let b1 = vB.addScaled(vB.look(vA), EMath.clamp(amount, 0, tMaxA));
             let b2 = vB.addScaled(vB.look(vC), EMath.clamp(amount, 0, tMaxC));
             newPositions.push(b1.x, b1.y, b2.x, b2.y);
