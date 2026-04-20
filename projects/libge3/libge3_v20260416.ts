@@ -101,7 +101,7 @@ export class Vec3 {
     }
 
     // Miscellaneous
-    get(i: number): number | undefined {
+    getI(i: number): number | undefined {
         switch(i) {
             case 0: return this._x;
             case 1: return this._y;
@@ -109,12 +109,19 @@ export class Vec3 {
         }
         return undefined;
     }
-    set(i: number, v: number): void {
+    setI(i: number, v: number): void {
         switch(i) {
             case 0: this._x = v; this.mutate(); return;
             case 1: this._y = v; this.mutate(); return;
             case 2: this._z = v; this.mutate(); return;
         }
+    }
+    set(other: Vec3): this {
+        this._x = other._x;
+        this._y = other._y;
+        this._z = other._z;
+        this.mutate();
+        return this;
     }
     setC(x: number, y: number, z: number): this {
         this._x = x;
@@ -612,19 +619,25 @@ export class Vec2 {
     }
 
     // Miscellaneous
-    get(i: number): number | undefined {
+    getI(i: number): number | undefined {
         switch(i) {
             case 0: return this._x;
             case 1: return this._y;
         }
         return undefined;
     }
-    set(i: number, v: number): void {
+    setI(i: number, v: number): void {
         switch(i) {
             case 0: this._x = v; return;
             case 1: this._y = v; return;
         }
         this.mutate();
+    }
+    set(other: Vec2): this {
+        this._x = other._x;
+        this._y = other._y;
+        this.mutate();
+        return this;
     }
     setC(x: number, y: number): this {
         this._x = x;
@@ -1227,26 +1240,33 @@ export abstract class Noise {
     static getWorley3DValueAtGrid(x: number, y: number, z: number, seed: number) {
         return this.randomConstant4(x, y, z, seed);
     }
-    static getWorley3DValueAt(x: number, y: number, z: number, seed: number, offsetAmp: number, search?: number) {
+    static getWorley3DAt(x: number, y: number, z: number, seed: number, offsetAmp: number, search?: number) {
         search = search ?? Math.ceil(offsetAmp) + 1;
         const gx = Math.floor(x);
         const gy = Math.floor(y);
         const gz = Math.floor(z);
         let minDist = Infinity;
+        let minDist2 = Infinity;
         let value = 0;
+        let value2 = 0;
         for(let ix=gx-search; ix<=gx+search; ix++) {
             for(let iy=gy-search; iy<=gy+search; iy++) {
                 for(let iz=gz-search; iz<=gz+search; iz++) {
                     let point = this.getWorley3DPositionAtGrid(ix, iy, iz, seed, offsetAmp);
                     let dist = point.distToC(x, y, z);
                     if(dist < minDist) {
+                        minDist2 = minDist;
+                        value2 = value;
                         minDist = dist;
                         value = this.getWorley3DValueAtGrid(ix, iy, iz, seed);
+                    } else if(dist < minDist2) {
+                        minDist2 = dist;
+                        value2 = this.getWorley3DValueAtGrid(ix, iy, iz, seed);
                     }
                 }
             }
         }
-        return value;
+        return { value, value2, minDist, minDist2 };
     }
 }
 
@@ -1310,7 +1330,7 @@ export class Camera3D {
             this._outdatedTranslationMatrix = true;
             this._outdatedViewMatrix = true;
         };
-        v.onMutate();
+        v.mutate();
     }
 
     private _worldScale = 1;
@@ -1337,47 +1357,59 @@ export class Camera3D {
             this._outdatedRotationMatrix = true;
             this._outdatedViewMatrix = true;
         };
-        v.onMutate();
+        v.mutate();
     }
 
     private _forward = Vec3.zero();
     private _outdatedForward?: boolean = true;
     get forward() {
-        if(this._outdatedForward) {
-            this._forward = Vec3.zAxis().negSelf().rotXYZSelf(this._rotation);
-            delete this._outdatedForward;
-        }
+        this.updateForward();
         return this._forward;
+    }
+    updateForward() {
+        if(this._outdatedForward != true)
+            return;
+        this._forward = Vec3.zAxis().negSelf().rotXYZSelf(this._rotation);
+        delete this._outdatedForward;
     }
 
     private _right = Vec3.zero();
     private _outdatedRight?: boolean = true;
     get right() {
-        if(this._outdatedRight) {
-            this._right = Vec3.xAxis().rotXYZSelf(this._rotation);
-            delete this._outdatedRight;
-        }
+        this.updateRight();
         return this._right;
+    }
+    updateRight() {
+        if(this._outdatedRight != true)
+            return;
+        this._right = Vec3.xAxis().rotXYZSelf(this._rotation);
+        delete this._outdatedRight;
     }
 
     private _up = Vec3.zero();
     private _outdatedUp?: boolean = true;
     get up() {
-        if(this._outdatedUp) {
-            this._up = Vec3.yAxis().rotXYZSelf(this._rotation);
-            delete this._outdatedUp;
-        }
+        this.updateUp();
         return this._up;
+    }
+    updateUp() {
+        if(this._outdatedUp != true)
+            return;
+        this._up = Vec3.yAxis().rotXYZSelf(this._rotation);
+        delete this._outdatedUp;
     }
 
     private _forwardFlat = Vec3.zero();
     private _outdatedForwardFlat?: boolean = true;
     get forwardFlat() {
-        if(this._outdatedForwardFlat) {
-            this._forwardFlat = Vec3.zAxis().negSelf().rotYSelf(this._rotation.y);
-            delete this._outdatedForwardFlat;
-        }
+        this.updateForwardFlat();
         return this._forwardFlat;
+    }
+    updateForwardFlat() {
+        if(this._outdatedForwardFlat != true)
+            return;
+        this._forwardFlat = Vec3.zAxis().negSelf().rotYSelf(this._rotation.y);
+        delete this._outdatedForwardFlat;
     }
 
     private _perspectiveMatrix: number[] = [];
@@ -1446,6 +1478,21 @@ export class Camera3D {
         this.viewMatrixObserver.fire(this._viewMatrix);
     }
 
+    private _combinedMatrix: number[] = [];
+    private _outdatedCombinedMatrix?: boolean = true;
+    public combinedMatrixObserver = new Signal({ onConnect: conn => conn.fire(this.combinedMatrix) });
+    get combinedMatrix() {
+        this.updateCombinedMatrix();
+        return this._combinedMatrix;
+    }
+    updateCombinedMatrix() {
+        if(this._outdatedCombinedMatrix != true)
+            return;
+        this._combinedMatrix = Mat3.multiply(this.viewMatrix, this.perspectiveMatrix);
+        delete this._outdatedCombinedMatrix;
+        this.combinedMatrixObserver.fire(this._combinedMatrix);
+    }
+
     lookAt(p: Vec3) {
         let f = this.position.look(p);
         this.rotation = new Vec3(f.pitch(), f.yaw(), 0);
@@ -1453,29 +1500,147 @@ export class Camera3D {
 }
 
 export class Camera2D {
-    constructor(position?: Vec2, size?: Vec2) {
+    constructor(position?: Vec2, zoom?: number) {
         this.position = position ?? Vec2.zero();
-        this.size = size ?? Vec2.one();
+        this.zoom = zoom ?? 1;
+        this.rotation = 0;
     }
-    position: Vec2;
-    size: Vec2;
+
+    private _position!: Vec2;
+    get position() { return this._position; }
+    set position(value: Vec2) {
+        this._position = value;
+        this._position.onMutate = () => {
+            this._outdatedTranslationMatrix = true;
+            this._outdatedViewMatrix = true;
+        }
+        this._position.mutate();
+    }
+
+    private _zoom!: number;
+    get zoom() { return this._zoom; }
+    set zoom(value: number) {
+        this._zoom = value;
+        this._outdatedScaleMatrix = true;
+        this._outdatedViewMatrix = true;
+    }
+
+    private _rotation!: number;
+    get rotation() { return this._rotation; }
+    set rotation(value: number) {
+        this._rotation = value;
+        this._outdatedRotationMatrix = true;
+        this._outdatedViewMatrix = true;
+        this._outdatedRight = true;
+        this._outdatedUp = true;
+    }
+
+    private _right = Vec2.zero();
+    private _outdatedRight?: boolean = true;
+    get right() {
+        this.updateRight();
+        return this._right;
+    }
+    updateRight() {
+        if(this._outdatedRight != true)
+            return;
+        this._right = Vec2.xAxis().rotateSelf(this._rotation);
+        delete this._outdatedRight;
+    }
+
+    private _up = Vec2.zero();
+    private _outdatedUp?: boolean = true;
+    get up() {
+        this.updateUp();
+        return this._up;
+    }
+    updateUp() {
+        if(this._outdatedUp != true)
+            return;
+        this._up = Vec2.yAxis().rotateSelf(this._rotation);
+        delete this._outdatedUp;
+    }
+
+    private _translationMatrix: number[] = [];
+    private _outdatedTranslationMatrix?: boolean = true;
+    public translationMatrixObserver = new Signal({ onConnect: conn => conn.fire(this.translationMatrix) });
+    get translationMatrix() {
+        this.updateTranslationMatrix();
+        return this._translationMatrix;
+    }
+    updateTranslationMatrix() {
+        if(this._outdatedTranslationMatrix != true)
+            return;
+        this._translationMatrix = Mat3.translate(-this.position.x, -this.position.y);
+        delete this._outdatedViewMatrix;
+        this.translationMatrixObserver.fire(this._translationMatrix);
+    }
+
+    private _rotationMatrix: number[] = [];
+    private _outdatedRotationMatrix?: boolean = true;
+    public rotationMatrixObserver = new Signal({ onConnect: conn => conn.fire(this.rotationMatrix) });
+    get rotationMatrix() {
+        this.updateRotationMatrix();
+        return this._rotationMatrix;
+    }
+    updateRotationMatrix() {
+        if(this._outdatedRotationMatrix != true)
+            return;
+        this._rotationMatrix = Mat3.rotate(this.rotation);
+        delete this._outdatedRotationMatrix;
+        this.rotationMatrixObserver.fire(this._rotationMatrix);
+    }
+
+    private _scaleMatrix: number[] = [];
+    private _outdatedScaleMatrix?: boolean = true;
+    public scaleMatrixObserver = new Signal({ onConnect: conn => conn.fire(this.scaleMatrix) });
+    get scaleMatrix() {
+        this.updateScaleMatrix();
+        return this._scaleMatrix;
+    }
+    updateScaleMatrix() {
+        if(this._outdatedScaleMatrix != true)
+            return;
+        this._scaleMatrix = Mat3.rotate(this.zoom);
+        delete this._outdatedScaleMatrix;
+        this.scaleMatrixObserver.fire(this._scaleMatrix);
+    }
+
+    private _viewMatrix: number[] = [];
+    private _outdatedViewMatrix?: boolean = true;
+    public viewMatrixObserver = new Signal({ onConnect: conn => conn.fire(this.viewMatrix) });
+    get viewMatrix() {
+        this.updateViewMatrix();
+        return this._viewMatrix;
+    }
+    updateViewMatrix() {
+        if(this._outdatedViewMatrix != true)
+            return;
+        this._viewMatrix = Mat3.multiply(this.rotationMatrix, Mat3.multiply(this.translationMatrix, this.scaleMatrix));
+        delete this._outdatedViewMatrix;
+        this.viewMatrixObserver.fire(this._viewMatrix);
+    }
 }
 
 
 ////////////////////
 //  MESH CLASSES  //
 ////////////////////
-export class Mesh3D {
+export class TriMesh3D {
     positions: number[] = [];
     texcoords: number[] = [];
     normals: number[] = [];
-    constructor() {
+    constructor() { }
 
+    clone(): TriMesh3D {
+        return new TriMesh3D().append(this);
     }
-    clone(): Mesh3D {
-        return new Mesh3D().append(this);
+
+    translateSelf(v: Vec3): this {
+        return this.translateSelfC(v.x, v.y, v.z);
     }
-    translate(x: number, y: number, z: number): this {
+
+    translateSelfC(x: number, y: number, z: number): this {
         for(let i=0; i<this.positions.length; i+=3) {
             this.positions[i]! += x;
             this.positions[i+1]! += y;
@@ -1483,7 +1648,12 @@ export class Mesh3D {
         }
         return this;
     }
-    scale(x: number, y: number, z: number): this {
+
+    scaleSelf(v: Vec3): this {
+        return this.scaleSelfC(v.x, v.y, v.z);
+    }
+
+    scaleSelfC(x: number, y: number, z: number): this {
         for(let i=0; i<this.positions.length; i+=3) {
             this.positions[i]! *= x;
             this.positions[i+1]! *= y;
@@ -1491,7 +1661,12 @@ export class Mesh3D {
         }
         return this;
     }
-    rotate(ax: number, ay: number, az: number): this {
+
+    rotateSelf(v: Vec3) {
+        return this.rotateSelfC(v.x, v.y, v.z);
+    }
+
+    rotateSelfC(ax: number, ay: number, az: number): this {
         for(let i=0; i<this.positions.length; i+=3) {
             let p = new Vec3(this.positions[i]!, this.positions[i+1]!, this.positions[i+2]!);
             p.rotXYZSelfC(ax, ay, az);
@@ -1508,24 +1683,16 @@ export class Mesh3D {
         }
         return this;
     }
-    rotateAround(x: number, y: number, z: number, ax: number, ay: number, az: number): this {
-        for(let i=0; i<this.positions.length; i+=3) {
-            let p = new Vec3(this.positions[i]! - x, this.positions[i+1]! - y, this.positions[i+2]! - z);
-            p.rotXYZSelfC(ax, ay, az);
-            this.positions[i] = p.x + x;
-            this.positions[i+1] = p.y + y;
-            this.positions[i+2] = p.z + z;
-        }
-        for(let i=0; i<this.normals.length; i+=3) {
-            let p = new Vec3(this.normals[i]!, this.normals[i+1]!, this.normals[i+2]!);
-            p.rotXYZSelfC(ax, ay, az);
-            this.normals[i] = p.x;
-            this.normals[i+1] = p.y;
-            this.normals[i+2] = p.z;
-        }
-        return this;
+
+    rotateAroundSelf(origin: Vec3, v: Vec3) {
+        return this.rotateAroundSelfC(origin.x, origin.y, origin.z, v.x, v.y, v.z);
     }
-    append(...meshes: Mesh3D[]): this {
+
+    rotateAroundSelfC(x: number, y: number, z: number, ax: number, ay: number, az: number): this {
+        return this.translateSelfC(-x, -y, -z).rotateSelfC(ax, ay, az).translateSelfC(x, y, z);
+    }
+
+    append(...meshes: TriMesh3D[]): this {
         for(const mesh of meshes) {
             this.positions.push(...mesh.positions);
             this.texcoords.push(...mesh.texcoords);
@@ -1533,23 +1700,8 @@ export class Mesh3D {
         }
         return this;
     }
-    pushPositions(arr: number[], x: number, y: number, z: number) {
-        for(let i=0; i<this.positions.length; i+=3) {
-            arr.push(this.positions[i]! + x);
-            arr.push(this.positions[i+1]! + y);
-            arr.push(this.positions[i+2]! + z);
-        }
-        return arr;
-    }
-    setNormals(x: number, y: number, z: number): this {
-        for(let i=0; i<this.normals.length; i+=3) {
-            this.normals[i] = x;
-            this.normals[i+1] = y;
-            this.normals[i+2] = z;
-        }
-        return this;
-    }
-    static trianglesToEdges(positions: number[]): number[] {
+    
+    static getLines(positions: number[]): number[] {
         let edges: number[] = [];
         for(let i=0; i<positions.length; i+=9) {
             edges.push(positions[i]!, positions[i+1]!, positions[i+2]!, positions[i+3]!, positions[i+4]!, positions[i+5]!);
@@ -1558,7 +1710,8 @@ export class Mesh3D {
         }
         return edges;
     }
-    static triangleQuadsToEdges(positions: number[]): number[] {
+
+    static getQuadLines(positions: number[]): number[] {
         let edges: number[] = [];
         for(let i=0; i<positions.length; i+=18) {
             edges.push(positions[i]!, positions[i+1]!, positions[i+2]!, positions[i+3]!, positions[i+4]!, positions[i+5]!);
@@ -1570,25 +1723,153 @@ export class Mesh3D {
     }
 }
 
+export class TriMesh2D {
+    positions: number[] = [];
+    texcoords: number[] = [];
+    constructor() { }
+    
+    clone(): TriMesh2D {
+        return new TriMesh2D().append(this);
+    }
+
+    translateSelf(v: Vec2): this {
+        return this.translateSelfC(v.x, v.y);
+    }
+
+    translateSelfC(x: number, y: number): this {
+        for(let i=0; i<this.positions.length; i+=2) {
+            this.positions[i]! += x;
+            this.positions[i+1]! += y;
+        }
+        return this;
+    }
+
+    scaleSelf(v: Vec2): this {
+        return this.scaleSelfC(v.x, v.y);
+    }
+
+    scaleSelfC(x: number, y: number): this {
+        for(let i=0; i<this.positions.length; i+=2) {
+            this.positions[i]! *= x;
+            this.positions[i+1]! *= y;
+        }
+        return this;
+    }
+
+    rotateSelf(a: number): this {
+        for(let i=0; i<this.positions.length; i+=2) {
+            let p = new Vec2(this.positions[i]!, this.positions[i+1]!);
+            p.rotateSelf(a);
+            this.positions[i] = p.x;
+            this.positions[i+1] = p.y;
+        }
+        return this;
+    }
+
+    rotateAroundSelf(origin: Vec2, a: number) {
+        return this.rotateAroundSelfC(origin.x, origin.y, a);
+    }
+
+    rotateAroundSelfC(x: number, y: number, a: number): this {
+        return this.translateSelfC(-x, -y).rotateSelf(a).translateSelfC(x, y);
+    }
+
+    append(...meshes: TriMesh2D[]): this {
+        for(const mesh of meshes) {
+            this.positions.push(...mesh.positions);
+            this.texcoords.push(...mesh.texcoords);
+        }
+        return this;
+    }
+}
+
+export class Polygon2D {
+    positions: number[] = [];
+    constructor() { }
+
+    translateSelf(v: Vec2) {
+        return this.translateSelfC(v.x, v.y);
+    }
+
+    translateSelfC(x: number, y: number): this {
+        for(let i=0; i<this.positions.length; i+=2) {
+            this.positions[i]! += x;
+            this.positions[i+1]! += y;
+        }
+        return this;
+    }
+
+    scaleSelf(v: Vec2) {
+        return this.scaleSelfC(v.x, v.y);
+    }
+
+    scaleSelfC(x: number, y: number): this {
+        for(let i=0; i<this.positions.length; i+=2) {
+            this.positions[i]! *= x;
+            this.positions[i+1]! *= y;
+        }
+        return this;
+    }
+
+    rotateSelf(a: number): this {
+        for(let i=0; i<this.positions.length; i+=3) {
+            let p = new Vec2(this.positions[i]!, this.positions[i+1]!);
+            p.rotateSelf(a);
+            this.positions[i] = p.x;
+            this.positions[i+1] = p.y;
+        }
+        return this;
+    }
+
+    rotateAroundSelf(origin: Vec2, a: number) {
+        return this.rotateAroundSelfC(origin.x, origin.y, a);
+    }
+
+    rotateAroundSelfC(x: number, y: number, a: number) {
+        return this.translateSelfC(-x, -y).rotateSelf(a);
+    }
+
+    drawPath(ctx: CanvasRenderingContext2D, sx = 1, sy = 1) {
+        ctx.beginPath();
+        for(let i=0; i<this.positions.length; i+=2) {
+            if(i == 0) ctx.moveTo(this.positions[i]! * sx, this.positions[i+1]! * sy);
+            else ctx.lineTo(this.positions[i]! * sx, this.positions[i+1]! * sy);
+        }
+        ctx.closePath();
+    }
+}
+
 
 ///////////////////////
 //  PHYSICS CLASSES  //
 ///////////////////////
-export abstract class Physics2D {
-    static getPointRectCollision(point: Vec2, center: Vec2, rightOffset: Vec2, upOffset: Vec2) {
-        const right = rightOffset.norm();
-        const up = upOffset.norm();
-        const sizeX = rightOffset.length();
-        const sizeY = upOffset.length();
-        let diff = point.sub(center);
-        let dx = diff.dot(right);
-        let dy = diff.dot(up);
-        let isInside = (Math.abs(dx) < sizeX && Math.abs(dy) < sizeY);
+export type Shape2DCollision = {
+    inside: boolean,
+    collision: Vec2,
+    distance: number,
+    normal: Vec2,
+};
+
+export class Point2D {
+    constructor(public position: Vec2) {
+
+    }
+    isInsideRect(rect: Rect2D) {
+        let diff = this.position.sub(rect.position);
+        let dx = diff.dot(rect.right);
+        let dy = diff.dot(rect.up);
+        return (Math.abs(dx) <= rect.size.x && Math.abs(dy) <= rect.size.y);
+    }
+    getRectCollision(rect: Rect2D): Shape2DCollision {
+        let diff = this.position.sub(rect.position);
+        let dx = diff.dot(rect.right);
+        let dy = diff.dot(rect.up);
+        let isInside = (Math.abs(dx) < rect.size.x && Math.abs(dy) < rect.size.y);
         if(isInside) {
-            let d1 = Math.abs(point.sub(center.addScaled(up, sizeY)).dot(up));
-            let d2 = Math.abs(point.sub(center.addScaled(up, -sizeY)).dot(up));
-            let d3 = Math.abs(point.sub(center.addScaled(right, sizeX)).dot(right));
-            let d4 = Math.abs(point.sub(center.addScaled(right, -sizeX)).dot(right));
+            let d1 = Math.abs(this.position.sub(rect.position.addScaled(rect.up, rect.size.y)).dot(rect.up));
+            let d2 = Math.abs(this.position.sub(rect.position.addScaled(rect.up, -rect.size.y)).dot(rect.up));
+            let d3 = Math.abs(this.position.sub(rect.position.addScaled(rect.right, rect.size.x)).dot(rect.right));
+            let d4 = Math.abs(this.position.sub(rect.position.addScaled(rect.right, -rect.size.x)).dot(rect.right));
             let minIndex = 0;
             let minDist = d1;
             if(d2 < minDist) { minDist = d2; minIndex = 1; }
@@ -1598,123 +1879,378 @@ export abstract class Physics2D {
             let normal: Vec2;
             switch(minIndex) {
                 case 0:
-                    edge = center.addScaled(right, dx).addScaled(up, sizeY);
-                    normal = up;
+                    edge = rect.position.addScaled(rect.right, dx).addScaled(rect.up, rect.size.y);
+                    normal = rect.up;
                     break;
                 case 1:
-                    edge = center.addScaled(right, dx).addScaled(up, -sizeY);
-                    normal = up.neg();
+                    edge = rect.position.addScaled(rect.right, dx).addScaled(rect.up, -rect.size.y);
+                    normal = rect.up.neg();
                     break;
                 case 2:
-                    edge = center.addScaled(up, dy).addScaled(right, sizeX);
-                    normal = right;
+                    edge = rect.position.addScaled(rect.up, dy).addScaled(rect.right, rect.size.x);
+                    normal = rect.right;
                     break;
                 case 3:
-                    edge = center.addScaled(up, dy).addScaled(right, -sizeX);
-                    normal = right.neg();
+                    edge = rect.position.addScaled(rect.up, dy).addScaled(rect.right, -rect.size.x);
+                    normal = rect.right.neg();
                     break;
             }
             return {
                 inside: true,
                 collision: edge!,
-                distance: -edge!.distTo(point),
+                distance: -edge!.distTo(this.position),
                 normal: normal!,
             }
         } else {
-            dx = EMath.clamp(dx, -sizeX, sizeX);
-            dy = EMath.clamp(dy, -sizeY, sizeY);
-            let edge = center.addScaled(right, dx).addScaled(up, dy);
-            let dist = edge.distTo(point);
+            dx = EMath.clamp(dx, -rect.size.x, rect.size.x);
+            dy = EMath.clamp(dy, -rect.size.y, rect.size.y);
+            let edge = rect.position.addScaled(rect.right, dx).addScaled(rect.up, dy);
+            let dist = edge.distTo(this.position);
             return {
                 inside: false,
                 collision: edge,
                 distance: dist,
-                normal: edge.look(point),
+                normal: edge.look(this.position),
             };
         }
     }
-    static getIsPointInsideRect(point: Vec2, center: Vec2, rightOffset: Vec2, upOffset: Vec2) {
-        let diff = point.sub(center);
-        let dx = diff.dot(rightOffset.norm());
-        let dy = diff.dot(upOffset.norm());
-        return (Math.abs(dx) < rightOffset.length() && Math.abs(dy) < upOffset.length());
+    distToCircle(circle: Circle2D) {
+        let dist = this.position.distTo(circle.position);
+        return dist - circle.radius;
     }
-    static getCircleRectCollision(point: Vec2, radius: number, center: Vec2, rightOffset: Vec2, upOffset: Vec2) {
-        let res = this.getPointRectCollision(point, center, rightOffset, upOffset);
-        res.distance -= radius;
-        if(res.distance <= 0) res.inside = true;
-        return res;
-    }
-    static getCircleCircleCollision(pointA: Vec2, radiusA: number, pointB: Vec2, radiusB: number) {
-        let dist = pointA.distTo(pointB) - radiusA - radiusB;
-        let normal = pointA.look(pointB);
-        let collision = pointA.addScaled(normal, radiusA);
-        return {
-            inside: dist <= 0,
-            collision,
-            distance: dist,
-            normal,
-        };
-    }
-    static getCircleLineCollision(point: Vec2, radius: number, start: Vec2, end: Vec2) {
-        let dir = start.look(end);
-        let off = point.sub(start);
-        let t = off.dot(dir);
-        let maxT = end.distTo(start);
-        t = EMath.clamp(t, 0, maxT);
-        let collision = start.addScaled(dir, t);
-        let normal = collision.look(point);
-        let dist = collision.distTo(point) - radius;
-        return {
-            inside: dist <= 0,
-            collision,
-            distance: dist,
-            normal,
-        };
-    }
-    static resolveCircleCircleCollision(a: any, b: any, col: any) {
-        if(!col.inside)
-            return;
-        const velAlongNormal = b.velocity.sub(a.velocity).dot(col.normal);
-        const mi = (1/a.mass + 1/b.mass);
-        if (velAlongNormal < 0) {
-            const restitution = Math.min(a.restitution, b.restitution);
-            const j = -(1+restitution) * velAlongNormal / mi;
-            a.velocity.addScaledSelf(col.normal, j * -1 / a.mass);
-            b.velocity.addScaledSelf(col.normal, j * 1 / b.mass);
-        }
-        const correction = col.normal.rescale(Math.max(-col.distance - 1e-4, 0) / mi * 0.8);
-        a.position.addScaledSelf(correction, -1/a.mass);
-        b.position.addScaledSelf(correction, 1/b.mass);
-    }
-    static resolveCircleAnchoredRectCollision(a: any, b: any, col: any) {
-        if(!col.inside)
-            return;
-        const velAlongNormal = a.velocity.sub(b.velocity).dot(col.normal);
-        if (velAlongNormal < 0) {
-            const restitution = Math.min(a.restitution, b.restitution);
-            const j = -(1+restitution) * velAlongNormal;
-            a.velocity.addScaledSelf(col.normal, j);
-        }
-        a.position = col.collision.addScaled(col.normal, a.radius + 1e-6);
+    isInsideCircle(circle: Circle2D) {
+        return this.distToCircle(circle) <= 0;
     }
 }
 
+export class Ray2D {
+    constructor(public origin: Vec2, public direction: Vec2) {
 
-export abstract class Physics3D {
-    static raycastVoxels<T>(
-        origin: Vec3,
-        direction: Vec3,
+    }
+    raycastGrid<T>(
+        predicate: (pos:Vec2, normal:Vec2, dist:number) => T | undefined,
+        maxIterations = 1000
+    ): T | undefined {
+        const invDirAbs = this.direction.rdivF(1).map(x => Math.abs(x));
+        const sign = this.direction.map(x => x > 0 ? 1 : 0);
+        const step = this.direction.map(x => x > 0 ? 1 : -1);
+        let tMaxX = invDirAbs.x * (sign.x===0 ? (this.origin.x - Math.floor(this.origin.x)) : (Math.floor(this.origin.x) + 1 - this.origin.x));
+        let tMaxY = invDirAbs.y * (sign.y===0 ? (this.origin.y - Math.floor(this.origin.y)) : (Math.floor(this.origin.y) + 1 - this.origin.y));
+        let pos = new Vec2(this.origin).mapSelf(x => Math.floor(x));
+        let distance = 0;
+        let normal = Vec2.zero();
+        for(let i=0; i<maxIterations; i++) {
+            let res = predicate(pos, normal, distance);
+            if(res !== undefined)
+                return res;
+            if(tMaxX < tMaxY) {
+                distance = tMaxX;
+                normal.setC(-step.x, 0);
+                tMaxX += invDirAbs.x;
+                pos.x += step.x;
+            } else {
+                distance = tMaxY;
+                normal.setC(0, -step.y);
+                tMaxY += invDirAbs.y;
+                pos.y += step.y;
+            }
+        }
+        return undefined;
+    }
+}
+
+export class Segment2D {
+    constructor(public start: Vec2, public end: Vec2) {
+
+    }
+}
+
+export class Rect2D {
+    constructor(public position: Vec2, size: Vec2, rotation: number) {
+        this.size = size;
+        this.rotation = rotation;
+    }
+
+    private _size!: Vec2;
+    get size() { return this._size; }
+    set size(value: Vec2) {
+        this._size = value;
+    }
+
+    private _rotation!: number
+    get rotation() { return this._rotation; }
+    set rotation(value: number) {
+        this._rotation = value;
+    }
+
+    private _right = Vec2.zero();
+    private _outdatedRight?: boolean = true;
+    get right() {
+        this.updateRight();
+        return this._right;
+    }
+    updateRight() {
+        if(this._outdatedRight != true)
+            return;
+        this._right = Vec2.xAxis().rotateSelf(this._rotation);
+        delete this._outdatedRight;
+    }
+
+    private _up = Vec2.zero();
+    private _outdatedUp?: boolean = true;
+    get up() {
+        this.updateUp();
+        return this._up;
+    }
+    updateUp() {
+        if(this._outdatedUp != true)
+            return;
+        this._up = Vec2.yAxis().rotateSelf(this._rotation);
+        delete this._outdatedUp;
+    }
+}
+
+export class Circle2D {
+    constructor(public position: Vec2, public radius: number) {
+
+    }
+    getRectCollision(rect: Rect2D): Shape2DCollision {
+        let res = new Point2D(this.position).getRectCollision(rect);
+        res.distance -= this.radius;
+        if(res.distance <= 0) res.inside = true;
+        return res;
+    }
+    getCircleCollision(other: Circle2D): Shape2DCollision {
+        let dist = this.position.distTo(other.position) - this.radius - other.radius;
+        let normal = this.position.look(other.position);
+        let collision = this.position.addScaled(normal, this.radius);
+        return {
+            inside: dist <= 0,
+            collision,
+            distance: dist,
+            normal,
+        };
+    }
+    getSegmentCollision(segment: Segment2D): Shape2DCollision {
+        let dir = segment.start.look(segment.end);
+        let off = this.position.sub(segment.start);
+        let t = off.dot(dir);
+        let maxT = segment.end.distTo(segment.start);
+        t = EMath.clamp(t, 0, maxT);
+        let collision = segment.start.addScaled(dir, t);
+        let normal = collision.look(this.position);
+        let dist = collision.distTo(this.position) - this.radius;
+        return {
+            inside: dist <= 0,
+            collision,
+            distance: dist,
+            normal,
+        };
+    }
+}
+
+export let Circle2DMesh = new TriMesh2D();
+export let Circle2DPositionsF32 = new Float32Array(Circle2DMesh.positions);
+export let Rect2DMesh = new TriMesh2D();
+export let Rect2DPositionsF32 = new Float32Array(Rect2DMesh.positions);
+
+export type PhysicsPart2DShape = "rect" | "circle";
+
+export class PhysicsPart2D {
+    anchored = false;
+    velocity = Vec2.zero();
+    hasCollision = true;
+    color = new Color();
+    shaderObject!: WGL2Object;
+    mass = 1;
+    restitution = 1;
+    gravity = 500;
+    collisionEvent: Signal<[collision: Shape2DCollision, partA: PhysicsPart2D, partB: PhysicsPart2D]> = new Signal();
+    constructor(shader: WGL2Shader, position: Vec2, size: Vec2) {
+        this.shapeType = "circle";
+        this.shader = shader;
+        this.position = position;
+        this.size = size;
+        this.rotation = 0;
+    }
+
+    private _shader!: WGL2Shader;
+    uColor?: WGL2ComponentUniform;
+    uView?: WGL2ComponentUniform;
+    get shader() { return this._shader; }
+    set shader(value: WGL2Shader) {
+        this._shader = value;
+        this.uColor = value.getUniform("u_color");
+        this.uView = value.getUniform("u_view");
+        if(this.shaderObject)
+            this.shaderObject.remove();
+        this.shaderObject = value.createObject();
+        this._updateShaderObjectData();
+    }
+
+    private _rotation!: number;
+    get rotation() { return this._rotation; }
+    set rotation(value: number) {
+        if(value == this._rotation)
+            return;
+        this._rotation = value;
+        this._outdatedRotationMatrix = true;
+        this._outdatedViewMatrix = true;
+        if(this.shape instanceof Rect2D) {
+            this.shape.rotation = this._rotation;
+        }
+    } 
+
+    lastPosition = Vec2.zero();
+    private _position!: Vec2;
+    get position() { return this._position; }
+    set position(value: Vec2) {
+        this._position = value;
+        this._position.onMutate = () => {
+            this._outdatedTranslationMatrix = true;
+            this._outdatedViewMatrix = true;
+        }
+        this._position.mutate();
+        this.shape.position = this._position;
+    }
+
+    shape!: Circle2D | Rect2D;
+    private _shapeType: PhysicsPart2DShape = "rect";
+    get shapeType() { return this._shapeType; }
+    set shapeType(value: PhysicsPart2DShape) {
+        this._shapeType = value;
+        this._updateShaderObjectData();
+    }
+    private _updateShaderObjectData() {
+        switch(this._shapeType) {
+            case "rect":
+                this.shaderObject.setData("a_position", Rect2DPositionsF32);
+                this.shape = new Rect2D(this.position, this.size, this.rotation);
+                break;
+            case "circle":
+                this.shaderObject.setData("a_position", Circle2DPositionsF32);
+                this.shape = new Circle2D(this.position, Math.max(this.size.x, this.size.y));
+                break;
+        }
+    }
+
+    private _size!: Vec2;
+    get size() { return this._size; }
+    set size(value: Vec2) {
+        this._size = value;
+        this._size.onMutate = () => {
+            this._outdatedScaleMatrix = true;
+            this._outdatedViewMatrix = true;
+        }
+        this._size.mutate();
+        if(this.shape instanceof Rect2D) {
+            this.shape.size = this._size;
+        } else {
+            this.shape.radius = Math.max(this._size.x, this._size.y);
+        }
+    }
+    
+    private _translationMatrix: number[] = [];
+    private _outdatedTranslationMatrix?: boolean = true;
+    get translationMatrix() {
+        this.updateTranslationMatrix();
+        return this._translationMatrix;
+    }
+    updateTranslationMatrix() {
+        if(this._outdatedTranslationMatrix != true)
+            return;
+        this._translationMatrix = Mat3.translate(this.position.x, this.position.y);
+    }
+
+    private _rotationMatrix: number[] = [];
+    private _outdatedRotationMatrix?: boolean = true;
+    get rotationMatrix() {
+        this.updateRotationMatrix();
+        return this._rotationMatrix;
+    }
+    updateRotationMatrix() {
+        if(this._outdatedRotationMatrix != true)
+            return;
+        this._rotationMatrix = Mat3.rotate(this.rotation);
+    }
+
+    private _scaleMatrix: number[] = [];
+    private _outdatedScaleMatrix?: boolean = true;
+    get scaleMatrix() {
+        this.updateScaleMatrix();
+        return this._scaleMatrix;
+    }
+    updateScaleMatrix() {
+        if(this._outdatedScaleMatrix != true)
+            return;
+        this._scaleMatrix = Mat3.scale(this.size.x, this.size.y);
+    }
+
+    private _viewMatrix: number[] = [];
+    private _outdatedViewMatrix?: boolean = true;
+    get viewMatrix() {
+        this.updateViewMatrix();
+        return this._viewMatrix;
+    }
+    updateViewMatrix() {
+        if(this._outdatedViewMatrix != true)
+            return;
+        this._viewMatrix = Mat3.multiply(this.rotationMatrix, Mat3.multiply(this.translationMatrix, this.scaleMatrix));
+    }
+
+    resolveCircleCircleCollision(other: PhysicsPart2D, collision: Shape2DCollision) {
+        if(!collision.inside)
+            return;
+        const velAlongNormal = other.velocity.sub(this.velocity).dot(collision.normal);
+        const mi = (1/this.mass + 1/other.mass);
+        if (velAlongNormal < 0) {
+            const restitution = Math.min(this.restitution, other.restitution);
+            const j = -(1+restitution) * velAlongNormal / mi;
+            this.velocity.addScaledSelf(collision.normal, j * -1 / this.mass);
+            other.velocity.addScaledSelf(collision.normal, j * 1 / other.mass);
+        }
+        const correction = collision.normal.rescale(Math.max(-collision.distance - 1e-4, 0) / mi * 0.8);
+        this.position.addScaledSelf(correction, -1/this.mass);
+        other.position.addScaledSelf(correction, 1/other.mass);
+    }
+
+    resolveCircleAnchoredRectCollision(other: PhysicsPart2D, collision: Shape2DCollision) {
+        if(!collision.inside)
+            return;
+        const velAlongNormal = this.velocity.sub(other.velocity).dot(collision.normal);
+        if (velAlongNormal < 0) {
+            const restitution = Math.min(this.restitution, other.restitution);
+            const j = -(1+restitution) * velAlongNormal;
+            this.velocity.addScaledSelf(collision.normal, j);
+        }
+        const radius = Math.max(this.size.x, this.size.y);
+        this.position = collision.collision.addScaled(collision.normal, radius + 1e-6);
+    }
+
+    render(camera?: Camera2D) {
+        if(this.uColor)
+            this.uColor.setValues([this.color.r, this.color.g, this.color.b]);
+        if(this.uView)
+            this.uView.setValues(camera ? Mat3.multiply(this.viewMatrix, camera.viewMatrix) : this.viewMatrix);
+        this.shaderObject.drawTriangles();
+    }
+}
+
+export class Ray3D {
+    constructor(public origin: Vec3, public direction: Vec3) {
+
+    }
+    raycastVoxels<T>(
         predicate: (pos:Vec3, normal:Vec3, dist:number) => T | undefined,
         maxIterations = 1000
     ): T | undefined {
-        const invDirAbs = direction.rdivF(1).map(x => Math.abs(x));
-        const sign = direction.map(x => x > 0 ? 1 : 0);
-        const step = direction.map(x => x > 0 ? 1 : -1);
-        let tMaxX = invDirAbs.x * (sign.x===0 ? (origin.x - Math.floor(origin.x)) : (Math.floor(origin.x) + 1 - origin.x));
-        let tMaxY = invDirAbs.y * (sign.y===0 ? (origin.y - Math.floor(origin.y)) : (Math.floor(origin.y) + 1 - origin.y));
-        let tMaxZ = invDirAbs.z * (sign.z===0 ? (origin.z - Math.floor(origin.z)) : (Math.floor(origin.z) + 1 - origin.z));
-        let pos = new Vec3(origin).mapSelf(x => Math.floor(x));
+        const invDirAbs = this.direction.rdivF(1).map(x => Math.abs(x));
+        const sign = this.direction.map(x => x > 0 ? 1 : 0);
+        const step = this.direction.map(x => x > 0 ? 1 : -1);
+        let tMaxX = invDirAbs.x * (sign.x===0 ? (this.origin.x - Math.floor(this.origin.x)) : (Math.floor(this.origin.x) + 1 - this.origin.x));
+        let tMaxY = invDirAbs.y * (sign.y===0 ? (this.origin.y - Math.floor(this.origin.y)) : (Math.floor(this.origin.y) + 1 - this.origin.y));
+        let tMaxZ = invDirAbs.z * (sign.z===0 ? (this.origin.z - Math.floor(this.origin.z)) : (Math.floor(this.origin.z) + 1 - this.origin.z));
+        let pos = new Vec3(this.origin).mapSelf(x => Math.floor(x));
         let distance = 0;
         let normal = Vec3.zero();
         for(let i=0; i<maxIterations; i++) {
@@ -1749,28 +2285,24 @@ export abstract class Physics3D {
         }
         return undefined;
     }
-    static raycastBox(
-        origin: Vec3,
-        direction: Vec3,
-        bounds: Vec3[]
-    ) {
-        const invDir = direction.rdivF(1);
-        const sign = direction.map(x => x > 0 ? 1 : 0);
-        const signFlip = direction.map(x => x > 0 ? 0 : 1);
-        const stepFlip = direction.map(x => x > 0 ? -1 : 1);
-        let tmin = (bounds[signFlip.x]!.x - origin.x) * invDir.x;
-        let tmax = (bounds[sign.x]!.x - origin.x) * invDir.x;
+    raycastBox(bounds: Vec3[]) {
+        const invDir = this.direction.rdivF(1);
+        const sign = this.direction.map(x => x > 0 ? 1 : 0);
+        const signFlip = this.direction.map(x => x > 0 ? 0 : 1);
+        const stepFlip = this.direction.map(x => x > 0 ? -1 : 1);
+        let tmin = (bounds[signFlip.x]!.x - this.origin.x) * invDir.x;
+        let tmax = (bounds[sign.x]!.x - this.origin.x) * invDir.x;
         let normal = new Vec3(stepFlip.x,0,0);
-        let tymin = (bounds[signFlip.y]!.y - origin.y) * invDir.y;
-        let tymax = (bounds[sign.y]!.y - origin.y) * invDir.y;
+        let tymin = (bounds[signFlip.y]!.y - this.origin.y) * invDir.y;
+        let tymax = (bounds[sign.y]!.y - this.origin.y) * invDir.y;
         if((tmin > tymax) || (tymin > tmax)) return null;
         if(tymin > tmin) {
             tmin = tymin;
             normal = new Vec3(0,stepFlip.y,0);
         }
         if(tymax < tmax) tmax = tymax;
-        let tzmin = (bounds[signFlip.z]!.z - origin.z) * invDir.z;
-        let tzmax = (bounds[sign.z]!.z - origin.z) * invDir.z;
+        let tzmin = (bounds[signFlip.z]!.z - this.origin.z) * invDir.z;
+        let tzmax = (bounds[sign.z]!.z - this.origin.z) * invDir.z;
         if((tmin > tzmax) || (tzmin > tmax)) return null;
         if(tzmin > tmin) {
             tmin = tzmin;
@@ -1778,98 +2310,60 @@ export abstract class Physics3D {
         }
         if(tzmax < tmax) tmax = tzmax;
         const distance = tmin < 0 ? 0 : tmin;
-        return { normal, distance, intersection: origin.addScaled(direction, distance) };
+        return { normal, distance, intersection: this.origin.addScaled(this.direction, distance) };
     }
 }
 
-
-export class PhysicsLab2DPart {
-    constructor(public lab: PhysicsLab2D) {
-
-    }
-}
-export class PhysicsLab2D {
-    objectObserver: Signal<[obj: any]> = new Signal({onConnect:(conn)=>{for(const obj of this.objects)conn.fire(obj);}});
-    objects: any = [];
-    constructor() {
-
-    }
-    createRect(position: Vec2, size: Vec2, rotation: number) {
-        let rect: any = {position, size};
-        rect.lastPosition = position.clone();
-        rect.setRotation = (angle: number) => {
-            rect.rotation = angle;
-            rect.right = Vec2.xAxis().rotate(angle);
-            rect.up = Vec2.yAxis().rotate(angle);
-            rect.rightOffset = rect.right.mulF(rect.size.x/2);
-            rect.upOffset = rect.up.mulF(rect.size.y/2);
-            rect.rotationMatrix = Mat3.rotate(rect.rotation);
-        }
-        rect.setRotation(rotation);
-        rect.rotationMatrix = Mat3.rotate(rect.rotation);
-        rect.velocity = Vec2.zero();
-        rect.restitution = 1;
-        rect.gravity = 500;
-        rect.hasCollision = true;
-        rect.anchored = true;
-        rect.type = "rect";
-        rect.collision = null;
-        this.objects.push(rect);
-        this.objectObserver.fire(rect);
-        return rect;
-    }
-    createBall(position: Vec2, radius: number) {
-        let ball: any = {position, radius};
-        ball.lastPosition = position.clone();
-        ball.velocity = Vec2.zero();
-        ball.rotationMatrix = Mat3.new();
-        ball.mass = 1;
-        ball.restitution = 1;
-        ball.gravity = 500;
-        ball.hasCollision = true;
-        ball.anchored = false;
-        ball.type = "ball";
-        ball.collision = null;
-        this.objects.push(ball);
-        this.objectObserver.fire(ball);
-        return ball;
+export class Physics2DEnvironment {
+    partObserver: Signal<[obj: any]> = new Signal({onConnect:(conn)=>{for(const obj of this.parts)conn.fire(obj);}});
+    parts: PhysicsPart2D[] = [];
+    constructor() { }
+    addPart(part: PhysicsPart2D) {
+        this.parts.push(part);
     }
     update(dt: number) {
-        for(let obj of this.objects) {
-            obj.collision = null;
-            if(!obj.anchored) continue;
-            obj.velocity = obj.position.sub(obj.lastPosition).mulF(1/dt);
-            obj.lastPosition.setC(obj.position.x, obj.position.y);
+        for(let part of this.parts) {
+            if(part.anchored) {
+                part.velocity = part.position.sub(part.lastPosition).mulF(1/dt);
+                part.lastPosition.setC(part.position.x, part.position.y);
+            } else {
+                part.lastPosition.setC(part.position.x, part.position.y);
+            }
         }
         for(let i=0; i<3; i++) {
-            for(let obj of this.objects) {
-                if(obj.anchored) continue;
+            for(let part of this.parts) {
+                if(part.anchored) continue;
                 if(i==0) {
-                    obj.velocity.y -= obj.gravity * dt;
-                    obj.position.addScaledSelf(obj.velocity, dt);
+                    part.velocity.y -= part.gravity * dt;
+                    part.position.addScaledSelf(part.velocity, dt);
                 }
-                if(obj.type == "ball") {
-                    for(let obj2 of this.objects) {
-                        if(!obj2.hasCollision) continue;
-                        if(obj2 == obj) continue;
-                        if(obj2.type == "ball") {
-                            let col = Physics2D.getCircleCircleCollision(obj.position, obj.radius, obj2.position, obj2.radius);
-                            Physics2D.resolveCircleCircleCollision(obj, obj2, col);
-                            if(col.inside) {
-                                obj.collision = col;
-                                obj2.collision = col;
+                if(part.shapeType == "circle" && !part.anchored) {
+                    for(let other of this.parts) {
+                        if(!other.hasCollision) continue;
+                        if(other == part) continue;
+                        if(other.shapeType == "circle" && !other.anchored) {
+                            let collision = (part.shape as Circle2D).getCircleCollision(other.shape as Circle2D);
+                            part.resolveCircleCircleCollision(other, collision);
+                            if(collision.inside) {
+                                part.collisionEvent.fire(collision, part, other);
+                                other.collisionEvent.fire(collision, part, other);
                             }
                         } else {
-                            let col = Physics2D.getCircleRectCollision(obj.position, obj.radius, obj2.position, obj2.rightOffset, obj2.upOffset);
-                            Physics2D.resolveCircleAnchoredRectCollision(obj, obj2, col);
-                            if(col.inside) {
-                                obj.collision = col;
-                                obj2.collision = col;
+                            let collision = (part.shape as Circle2D).getRectCollision(other.shape as Rect2D);
+                            part.resolveCircleAnchoredRectCollision(other, collision);
+                            if(collision.inside) {
+                                part.collisionEvent.fire(collision, part, other);
+                                other.collisionEvent.fire(collision, part, other);
                             }
                         }
                     }
                 }
             }
+        }
+    }
+    renderAll(camera: Camera2D) {
+        for(let part of this.parts) {
+            part.render(camera);
         }
     }
 }
@@ -2254,6 +2748,13 @@ export class WGL2Object {
     drawPoints() {
         this.cVao.setActive();
         this.gl.drawArrays(this.gl.POINTS, 0, this.vertexCount);
+    }
+    remove() {
+        for(const name in this.cBufferByName) {
+            this.cBufferByName[name]!.delete();
+        }
+        this.cVao.delete();
+        this.cBufferByName = {};
     }
 }
 
