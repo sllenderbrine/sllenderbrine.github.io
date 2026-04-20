@@ -1787,6 +1787,36 @@ export class Polygon2D {
     positions: number[] = [];
     constructor() { }
 
+    static createPositions(positions: number[]): Polygon2D {
+        const poly = new Polygon2D();
+        poly.positions = positions;
+        return poly;
+    }
+
+    static rect(x: number, y: number, w: number, h: number): Polygon2D {
+        const x0 = x - w/2;
+        const x1 = x + w/2;
+        const y0 = y - h/2;
+        const y1 = y + h/2;
+        return this.createPositions([x0,y0, x1,y0, x1,y1, x0,y1]);
+    }
+
+    static circle(x: number, y: number, r: number, arc: number = Math.PI * 2, step = Math.PI / 8): Polygon2D {
+        arc = EMath.clamp(arc, 0, Math.PI * 2);
+        let positions: number[] = [];
+        for(let i=0; i<arc; i+=step) {
+            positions.push(Math.cos(i) * r + x, Math.sin(i) * r + y);
+        }
+        positions.push(Math.cos(arc) * r + x, Math.sin(arc) * r + y);
+        return this.createPositions(positions);
+    }
+
+    static circleFan(x: number, y: number, r: number, arc: number = Math.PI * 2, step = Math.PI / 8): Polygon2D {
+        const poly = this.circle(x, y, r, arc, step);
+        poly.positions.splice(0, 0, x, y);
+        return poly;
+    }
+
     translateSelf(v: Vec2) {
         return this.translateSelfC(v.x, v.y);
     }
@@ -1836,6 +1866,51 @@ export class Polygon2D {
             else ctx.lineTo(this.positions[i]! * sx, this.positions[i+1]! * sy);
         }
         ctx.closePath();
+    }
+    
+    getVertex(index: number): Vec2 {
+        const j = EMath.pmod(index, Math.floor(this.positions.length/2))*2;
+        return new Vec2(this.positions[j]!, this.positions[j+1]!);
+    }
+
+    bevelSelf(indices: Set<number> | number[], amount: number): this {
+        if(!(indices instanceof Set))
+            indices = new Set(indices);
+        let newPositions: number[] = [];
+        let len = Math.floor(this.positions.length/2);
+        for(let index=0; index<len; index++) {
+            if(!indices.has(index))
+                continue;
+            let vA = this.getVertex(index-1);
+            let vB = this.getVertex(index);
+            let vC = this.getVertex(index+1);
+            let tMaxA = vA.distTo(vB);
+            let tMaxC = vC.distTo(vB);
+            if(indices.has(index-1)) tMaxA /= 2;
+            if(indices.has(index+1)) tMaxC /= 2;
+            let b1 = vB.addScaled(vB.look(vA), EMath.clamp(amount, 0, tMaxA));
+            let b2 = vB.addScaled(vB.look(vC), EMath.clamp(amount, 0, tMaxC));
+            newPositions.push(b1.x, b1.y, b2.x, b2.y);
+        }
+        this.positions = newPositions;
+        return this;
+    }
+
+    bevelAllSelf(amount: number) {
+        let newPositions: number[] = [];
+        let len = Math.floor(this.positions.length/2);
+        for(let index=0; index<len; index++) {
+            let vA = this.getVertex(index-1);
+            let vB = this.getVertex(index);
+            let vC = this.getVertex(index+1);
+            let tMaxA = vA.distTo(vB) / 2;
+            let tMaxC = vC.distTo(vB) / 2;
+            let b1 = vB.addScaled(vB.look(vA), EMath.clamp(amount, 0, tMaxA));
+            let b2 = vB.addScaled(vB.look(vC), EMath.clamp(amount, 0, tMaxC));
+            newPositions.push(b1.x, b1.y, b2.x, b2.y);
+        }
+        this.positions = newPositions;
+        return this;
     }
 }
 
@@ -3396,9 +3471,9 @@ export class RenderLoop {
 }
 
 
-//////////
-//  AI  //
-//////////
+///////////////////////////////
+//  ARTIFICIAL INTELLIGENCE  //
+///////////////////////////////
 export abstract class LayerActivation {
     abstract forward(z: number): number;
     abstract derivative(a: number, z: number): number;
@@ -3409,7 +3484,7 @@ export class SigmoidActivation extends LayerActivation {
     derivative(a: number, z: number) { return a * (1 - a); }
 }
 
-export class ReLuActivation extends LayerActivation {
+export class ReluActivation extends LayerActivation {
     forward(z: number) { return Math.max(z, 0); }
     derivative(a: number, z: number) { return z > 0 ? 1 : 0; }
 }
@@ -3418,7 +3493,6 @@ export class LinearActivation extends LayerActivation {
     forward(z: number) { return z; }
     derivative(a: number, z: number) { return 1; }
 }
-
 
 
 export class Layer {
@@ -3451,132 +3525,6 @@ export class Layer {
 /////////////////////
 //  ICON GENERATOR //
 /////////////////////
-export class IconPolygon2D {
-    positions: number[] = [];
-    constructor() {
-
-    }
-    clone(): IconPolygon2D {
-        let poly = new IconPolygon2D();
-        poly.positions.push(...this.positions);
-        return poly;
-    }
-    getCenterOfMass(): Vec2 {
-        let c = Vec2.zero();
-        for(let i=0; i<this.positions.length; i+=2)
-            c.addSelfC(this.positions[i]!, this.positions[i+1]!);
-        if(this.positions.length > 0) c.divSelfF(this.positions.length/2);
-        return c;
-    }
-    rotateSelf(a: number): this {
-        for(let i=0; i<this.positions.length; i+=2) {
-            let v = new Vec2(this.positions[i]!, this.positions[i+1]!).rotateSelf(a);
-            this.positions[i] = v.x;
-            this.positions[i+1] = v.y;
-        }
-        return this;
-    }
-    scaleSelf(v: Vec2): this {
-        return this.scaleSelfC(v.x, v.y);
-    }
-    scaleSelfC(x: number, y: number): this {
-        for(let i=0; i<this.positions.length; i+=2) {
-            this.positions[i]! *= x;
-            this.positions[i+1]! *= y;
-        }
-        return this;
-    }
-    translateSelf(v: Vec2): this {
-        return this.translateSelfC(v.x, v.y);
-    }
-    translateSelfC(x: number, y: number): this {
-        for(let i=0; i<this.positions.length; i+=2) {
-            this.positions[i]! += x;
-            this.positions[i+1]! += y;
-        }
-        return this;
-    }
-    getVertex(index: number): Vec2 {
-        const j = EMath.pmod(index, Math.floor(this.positions.length/2))*2;
-        return new Vec2(this.positions[j]!, this.positions[j+1]!);
-    }
-    bevelSelf(indices: Set<number> | number[], amount: number): this {
-        if(!(indices instanceof Set))
-            indices = new Set(indices);
-        let newPositions: number[] = [];
-        let len = Math.floor(this.positions.length/2);
-        for(let index=0; index<len; index++) {
-            if(!indices.has(index))
-                continue;
-            let vA = this.getVertex(index-1);
-            let vB = this.getVertex(index);
-            let vC = this.getVertex(index+1);
-            let tMaxA = vA.distTo(vB);
-            let tMaxC = vC.distTo(vB);
-            if(indices.has(index-1)) tMaxA /= 2;
-            if(indices.has(index+1)) tMaxC /= 2;
-            let b1 = vB.addScaled(vB.look(vA), EMath.clamp(amount, 0, tMaxA));
-            let b2 = vB.addScaled(vB.look(vC), EMath.clamp(amount, 0, tMaxC));
-            newPositions.push(b1.x, b1.y, b2.x, b2.y);
-        }
-        this.positions = newPositions;
-        return this;
-    }
-    bevelAllSelf(amount: number) {
-        let newPositions: number[] = [];
-        let len = Math.floor(this.positions.length/2);
-        for(let index=0; index<len; index++) {
-            let vA = this.getVertex(index-1);
-            let vB = this.getVertex(index);
-            let vC = this.getVertex(index+1);
-            let tMaxA = vA.distTo(vB) / 2;
-            let tMaxC = vC.distTo(vB) / 2;
-            let b1 = vB.addScaled(vB.look(vA), EMath.clamp(amount, 0, tMaxA));
-            let b2 = vB.addScaled(vB.look(vC), EMath.clamp(amount, 0, tMaxC));
-            newPositions.push(b1.x, b1.y, b2.x, b2.y);
-        }
-        this.positions = newPositions;
-        return this;
-    }
-    drawFill(ctx: CanvasRenderingContext2D, color: string): this {
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.moveTo(this.positions[0]! * ctx.canvas.width, this.positions[1]! * ctx.canvas.height);
-        for(let i=2; i<this.positions.length; i+=2) {
-            ctx.lineTo(this.positions[i]! * ctx.canvas.width, this.positions[i+1]! * ctx.canvas.height);
-        }
-        ctx.closePath();
-        ctx.fill();
-        return this;
-    }
-    static createPositions(positions: number[]): IconPolygon2D {
-        const poly = new IconPolygon2D();
-        poly.positions = positions;
-        return poly;
-    }
-    static rect(x: number, y: number, w: number, h: number): IconPolygon2D {
-        const x0 = x - w/2;
-        const x1 = x + w/2;
-        const y0 = y - h/2;
-        const y1 = y + h/2;
-        return this.createPositions([x0,y0, x1,y0, x1,y1, x0,y1]);
-    }
-    static circle(x: number, y: number, r: number, arc: number = Math.PI * 2, step = Math.PI / 8): IconPolygon2D {
-        arc = EMath.clamp(arc, 0, Math.PI * 2);
-        let positions: number[] = [];
-        for(let i=0; i<arc; i+=step) {
-            positions.push(Math.cos(i) * r + x, Math.sin(i) * r + y);
-        }
-        positions.push(Math.cos(arc) * r + x, Math.sin(arc) * r + y);
-        return this.createPositions(positions);
-    }
-    static circleFan(x: number, y: number, r: number, arc: number = Math.PI * 2, step = Math.PI / 8): IconPolygon2D {
-        const poly = this.circle(x, y, r, arc, step);
-        poly.positions.splice(0, 0, x, y);
-        return poly;
-    }
-}
-
 export class IconGenerationContext2D {
     layers: {[key: string]: CanvasRenderingContext2D} = {};
     selectedLayer!: CanvasRenderingContext2D;
