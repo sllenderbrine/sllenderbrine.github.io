@@ -1500,9 +1500,9 @@ export class Camera3D {
 }
 
 export class Camera2D {
-    constructor(position?: Vec2, zoom?: number) {
+    constructor(position?: Vec2, scale?: Vec2) {
         this.position = position ?? Vec2.zero();
-        this.zoom = zoom ?? 1;
+        this.scale = scale ?? Vec2.fill(1);
         this.rotation = 0;
     }
 
@@ -1517,12 +1517,15 @@ export class Camera2D {
         this._position.mutate();
     }
 
-    private _zoom!: number;
-    get zoom() { return this._zoom; }
-    set zoom(value: number) {
-        this._zoom = value;
-        this._outdatedScaleMatrix = true;
-        this._outdatedViewMatrix = true;
+    private _scale!: Vec2;
+    get scale() { return this._scale; }
+    set scale(value: Vec2) {
+        this._scale = value;
+        this._scale.onMutate = () => {
+            this._outdatedScaleMatrix = true;
+            this._outdatedViewMatrix = true;
+        };
+        this._scale.mutate();
     }
 
     private _rotation!: number;
@@ -1601,7 +1604,7 @@ export class Camera2D {
     updateScaleMatrix() {
         if(this._outdatedScaleMatrix != true)
             return;
-        this._scaleMatrix = Mat3.rotate(this.zoom);
+        this._scaleMatrix = Mat3.scale(this.scale.x, this.scale.y);
         delete this._outdatedScaleMatrix;
         this.scaleMatrixObserver.fire(this._scaleMatrix);
     }
@@ -1616,7 +1619,7 @@ export class Camera2D {
     updateViewMatrix() {
         if(this._outdatedViewMatrix != true)
             return;
-        this._viewMatrix = Mat3.multiply(this.rotationMatrix, Mat3.multiply(this.translationMatrix, this.scaleMatrix));
+        this._viewMatrix = Mat3.multiply(this.scaleMatrix, Mat3.multiply(this.translationMatrix, this.rotationMatrix));
         delete this._outdatedViewMatrix;
         this.viewMatrixObserver.fire(this._viewMatrix);
     }
@@ -2125,27 +2128,44 @@ export class Circle2D {
 }
 
 export let Circle2DMesh = new TriMesh2D();
+for(let i=0; i<16; i++) {
+    let a1 = i/16 * Math.PI * 2;
+    let a2 = (i+1)/16 * Math.PI * 2;
+    Circle2DMesh.positions.push(Math.cos(a1), Math.sin(a1));
+    Circle2DMesh.positions.push(0, 0);
+    Circle2DMesh.positions.push(Math.cos(a2), Math.sin(a2));
+}
 export let Circle2DPositionsF32 = new Float32Array(Circle2DMesh.positions);
 export let Rect2DMesh = new TriMesh2D();
+Rect2DMesh.positions.push(-1,-1,1,-1,1,1,-1,-1,-1,1,1,1);
 export let Rect2DPositionsF32 = new Float32Array(Rect2DMesh.positions);
 
 export type PhysicsPart2DShape = "rect" | "circle";
 
 export class PhysicsPart2D {
-    anchored = false;
+    anchored: boolean;
     velocity = Vec2.zero();
     hasCollision = true;
-    color = new Color();
+    color: Color;
     shaderObject!: WGL2Object;
     mass = 1;
     restitution = 1;
     gravity = 500;
     collisionEvent: Signal<[collision: Shape2DCollision, partA: PhysicsPart2D, partB: PhysicsPart2D]> = new Signal();
-    constructor(shader: WGL2Shader, position: Vec2, size: Vec2) {
-        this.shapeType = "circle";
+    constructor(
+        shader: WGL2Shader,
+        position: Vec2,
+        size: Vec2,
+        color = new Color(0, 0, 0),
+        shapeType: PhysicsPart2DShape = "circle",
+        anchored = false
+    ) {
         this.shader = shader;
+        this.shapeType = shapeType;
         this.position = position;
         this.size = size;
+        this.color = color;
+        this.anchored = anchored;
         this.rotation = 0;
     }
 
@@ -2190,21 +2210,22 @@ export class PhysicsPart2D {
     }
 
     shape!: Circle2D | Rect2D;
-    private _shapeType: PhysicsPart2DShape = "rect";
+    private _shapeType!: PhysicsPart2DShape;
     get shapeType() { return this._shapeType; }
     set shapeType(value: PhysicsPart2DShape) {
         this._shapeType = value;
         this._updateShaderObjectData();
     }
     private _updateShaderObjectData() {
+        const size = this.size ?? Vec2.zero();
         switch(this._shapeType) {
             case "rect":
                 this.shaderObject.setData("a_position", Rect2DPositionsF32);
-                this.shape = new Rect2D(this.position, this.size, this.rotation);
+                this.shape = new Rect2D(this.position, size, this.rotation);
                 break;
             case "circle":
                 this.shaderObject.setData("a_position", Circle2DPositionsF32);
-                this.shape = new Circle2D(this.position, Math.max(this.size.x, this.size.y));
+                this.shape = new Circle2D(this.position, Math.min(size.x, size.y));
                 break;
         }
     }
@@ -2221,7 +2242,7 @@ export class PhysicsPart2D {
         if(this.shape instanceof Rect2D) {
             this.shape.size = this._size;
         } else {
-            this.shape.radius = Math.max(this._size.x, this._size.y);
+            this.shape.radius = Math.min(this._size.x, this._size.y);
         }
     }
     
@@ -2235,6 +2256,7 @@ export class PhysicsPart2D {
         if(this._outdatedTranslationMatrix != true)
             return;
         this._translationMatrix = Mat3.translate(this.position.x, this.position.y);
+        delete this._outdatedTranslationMatrix;
     }
 
     private _rotationMatrix: number[] = [];
@@ -2247,6 +2269,7 @@ export class PhysicsPart2D {
         if(this._outdatedRotationMatrix != true)
             return;
         this._rotationMatrix = Mat3.rotate(this.rotation);
+        delete this._outdatedRotationMatrix;
     }
 
     private _scaleMatrix: number[] = [];
@@ -2258,7 +2281,13 @@ export class PhysicsPart2D {
     updateScaleMatrix() {
         if(this._outdatedScaleMatrix != true)
             return;
-        this._scaleMatrix = Mat3.scale(this.size.x, this.size.y);
+        if(this._shapeType == "circle") {
+            const radius = Math.min(this.size.x, this.size.y);
+            this._scaleMatrix = Mat3.scale(radius, radius);
+        } else {
+            this._scaleMatrix = Mat3.scale(this.size.x, this.size.y);
+        }
+        delete this._outdatedScaleMatrix;
     }
 
     private _viewMatrix: number[] = [];
@@ -2271,6 +2300,7 @@ export class PhysicsPart2D {
         if(this._outdatedViewMatrix != true)
             return;
         this._viewMatrix = Mat3.multiply(this.rotationMatrix, Mat3.multiply(this.translationMatrix, this.scaleMatrix));
+        delete this._outdatedViewMatrix;
     }
 
     resolveCircleCircleCollision(other: PhysicsPart2D, collision: Shape2DCollision) {
@@ -2306,7 +2336,7 @@ export class PhysicsPart2D {
         if(this.uColor)
             this.uColor.setValues([this.color.r, this.color.g, this.color.b]);
         if(this.uView)
-            this.uView.setValues(camera ? Mat3.multiply(this.viewMatrix, camera.viewMatrix) : this.viewMatrix);
+            this.uView.setValues(camera ? Mat3.multiply(camera.viewMatrix, this.viewMatrix) : this.viewMatrix);
         this.shaderObject.drawTriangles();
     }
 }
@@ -2401,18 +2431,21 @@ export class Physics2DEnvironment {
                 uniform mat3 u_view;
                 void main() {
                     vec2 v_position = (u_view * vec3(a_position, 1)).xy;
-                    gl_Position = vec4(v_position, 0, 1)
+                    gl_Position = vec4(v_position, 0, 1);
                 }
             `,
             `#version 300 es
                 precision highp float;
-                uniform vec3 color;
+                uniform vec3 u_color;
                 out vec4 outColor;
                 void main() {
-                    outColor = vec4(color/255., 1);
+                    outColor = vec4(u_color/255., 1);
                 }
             `,
         );
+        this.defaultShader.addAttribute("a_position", "vec2");
+        this.defaultShader.createUniform("u_view", "mat3");
+        this.defaultShader.createUniform("u_color", "vec3");
     }
     addPart(part: PhysicsPart2D) {
         this.parts.push(part);
@@ -2444,7 +2477,7 @@ export class Physics2DEnvironment {
                                 part.collisionEvent.fire(collision, part, other);
                                 other.collisionEvent.fire(collision, part, other);
                             }
-                        } else {
+                        } else if(other.shapeType == "rect" && other.anchored) {
                             let collision = (part.shape as Circle2D).getRectCollision(other.shape as Rect2D);
                             part.resolveCircleAnchoredRectCollision(other, collision);
                             if(collision.inside) {

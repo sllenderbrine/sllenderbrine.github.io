@@ -1,0 +1,39 @@
+<html>
+<head>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: black;
+        }
+    </style>
+</head>
+<body>
+    <script type="module">
+        import { Physics2DEnvironment, PhysicsPart2D, Vec2, Camera2D, RenderLoop, Color } from "./libge3/libge3_v20260423.js";
+        const canvas = document.createElement("canvas");
+        canvas.width = 1920;
+        canvas.height = 1080;
+        canvas.style = "width:100%;height:100%;object-fit:contain;";
+        document.body.appendChild(canvas);
+        const gl = canvas.getContext("webgl2");
+        gl.clearColor(1, 1, 1, 1);
+        let camera = new Camera2D(Vec2.fill(0), new Vec2(canvas.width, canvas.height).rdivF(1));
+        const env = new Physics2DEnvironment(gl);
+        for(let i=0; i<50; i++) {
+            env.addPart(new PhysicsPart2D(env.defaultShader, Vec2.zero().map(()=>Math.random()*20), Vec2.fill(20), new Color(205, 50, 75), "circle", false));
+        }
+        env.addPart(new PhysicsPart2D(env.defaultShader, new Vec2(0, -600), new Vec2(400, 20), new Color(205, 50, 75), "rect", true));
+        for(const p of env.parts) {
+            p.shapeType = p.shapeType;
+            p._outdatedScaleMatrix = true;
+            console.log(p)
+        }
+        new RenderLoop(dt => {
+            env.update(dt);
+            env.renderAll(camera);
+        }).start();
+    </script>
+</body>
+</html>
