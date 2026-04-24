@@ -2392,7 +2392,28 @@ export class Ray3D {
 export class Physics2DEnvironment {
     partObserver: Signal<[obj: any]> = new Signal({onConnect:(conn)=>{for(const obj of this.parts)conn.fire(obj);}});
     parts: PhysicsPart2D[] = [];
-    constructor() { }
+    defaultShader: WGL2Shader;
+    constructor(gl: WebGL2RenderingContext) {
+        this.defaultShader = new WGL2Shader(
+            gl,
+            `#version 300 es
+                in vec2 a_position;
+                uniform mat3 u_view;
+                void main() {
+                    vec2 v_position = (u_view * vec3(a_position, 1)).xy;
+                    gl_Position = vec4(v_position, 0, 1)
+                }
+            `,
+            `#version 300 es
+                precision highp float;
+                uniform vec3 color;
+                out vec4 outColor;
+                void main() {
+                    outColor = vec4(color/255., 1);
+                }
+            `,
+        );
+    }
     addPart(part: PhysicsPart2D) {
         this.parts.push(part);
     }
@@ -3474,361 +3495,314 @@ export class RenderLoop {
 ///////////////////////////////
 //  ARTIFICIAL INTELLIGENCE  //
 ///////////////////////////////
-export abstract class LayerActivation {
-    abstract forward(z: number): number;
-    abstract derivative(a: number, z: number): number;
+export type LayerActivation = {
+    activate: (z: number) => number,
+    da_dz: (z: number, a: number) => number,
+    name: string,
 }
 
-export class SigmoidActivation extends LayerActivation {
-    forward(z: number) { return 1/(1+Math.exp(-z)); }
-    derivative(a: number, z: number) { return a * (1 - a); }
+export const SigmoidActivation: LayerActivation = {
+    activate: (z: number) => 1/(1+Math.exp(-z)),
+    da_dz: (z: number, a: number) => a * (1 - a),
+    name: "Sigmoid",
 }
 
-export class ReluActivation extends LayerActivation {
-    forward(z: number) { return Math.max(z, 0); }
-    derivative(a: number, z: number) { return z > 0 ? 1 : 0; }
+export const ReluActivation: LayerActivation = {
+    activate: (z: number) => Math.max(z, 0),
+    da_dz: (z: number, a: number) => z > 0 ? 1 : 0,
+    name: "ReLU",
 }
 
-export class LinearActivation extends LayerActivation {
-    forward(z: number) { return z; }
-    derivative(a: number, z: number) { return 1; }
+export const LinearActivation: LayerActivation = {
+    activate: (z: number) => z,
+    da_dz: (z: number, a: number) => 1,
+    name: "Linear",
+};
+
+export function softmaxLayer(layer: DenseLayer) {
+    let max = -Infinity;
+    for(let i=0; i<layer.size; i++) {
+        max = Math.max(max, layer.values_z[i]!);
+    }
+    let sum = 0;
+    for(let i=0; i<layer.size; i++) {
+        const v = Math.exp(layer.values_z[i]! - max);
+        layer.values_a[i] = v;
+        sum += v;
+    }
+    for(let i=0; i<layer.size; i++) {
+        layer.values_a[i]! /= sum;
+    }
 }
 
+export type LayerError = {
+    derr_da: (layer: DenseLayer, output: Float32Array | number[], i: number) => number,
+}
 
-export class Layer {
-    values: Float32Array;
+export const MseError: LayerError = {
+    derr_da: (layer: DenseLayer, output: Float32Array | number[], i: number) => {
+        return -2/layer.size * (output[i]! - layer.values_a[i]!);
+    },
+}
+
+export type WeightRandomizer = {
+    get: (nIn: number, nOut: number) => number,
+};
+
+export const XavierNormal: WeightRandomizer = {
+    get: (nIn: number, nOut: number) => {
+        const p1 = Math.sqrt(-2 * Math.log(Math.max(Math.random(), 1e-7)));
+        const p2 = Math.cos(2 * Math.PI * Math.random());
+        const p3 = Math.sqrt(2 / (nIn + nOut));
+        return p1 * p2 * p3;
+    }
+};
+
+export const XavierUniform: WeightRandomizer = {
+    get: (nIn: number, nOut: number) => {
+        const limit = Math.sqrt(6 / (nIn + nOut));
+        return Math.random() * (2 * limit) - limit;
+    }
+};
+
+export const HeNormal: WeightRandomizer = {
+    get: (nIn: number, nOut: number) => {
+        const p1 = Math.sqrt(-2 * Math.log(Math.max(Math.random(), 1e-7)));
+        const p2 = Math.cos(2 * Math.PI * Math.random());
+        const p3 = Math.sqrt(2 / nIn);
+        return p1 * p2 * p3;
+    }
+};
+
+export const HeUniform: WeightRandomizer = {
+    get: (nIn: number, nOut: number) => {
+        const limit = Math.sqrt(6 / nIn);
+        return Math.random() * (2 * limit) - limit;
+    }
+};
+
+export const RandomUniform: WeightRandomizer = {
+    get: (nIn: number, nOut: number) => {
+        return (Math.random() * 2 - 1) * 0.01;
+    }
+};
+
+export abstract class LayerOptimizer {
+    abstract applyGradients(learnRate: number, batchSize: number, clearGradients: boolean): void;
+}
+
+export class SgdOptimizer extends LayerOptimizer {
+    constructor(public layer: DenseLayer) { super(); }
+    applyGradients(learnRate: number, batchSize: number, clearGradients: boolean) {
+        const layer = this.layer;
+        const l = learnRate / batchSize;
+        for(let i=0; i<layer.size; i++) {
+            for(let j=0; j<layer.inputSize; j++) {
+                layer.weights[i]![j]! -= layer.weightGrads[i]![j]! * l;
+                if(clearGradients) layer.weightGrads[i]![j]! = 0;
+            }
+            layer.biases[i]! -= layer.biasGrads[i]! * l;
+            if(clearGradients) layer.biasGrads[i] = 0;
+        }
+    }
+}
+
+export class AdamOptimizer extends LayerOptimizer {
+    weightM: Float32Array[];
+    weightV: Float32Array[];
+    biasM: Float32Array;
+    biasV: Float32Array;
+    constructor(
+        public layer: DenseLayer,
+        public beta1 = 0.9,
+        public beta2 = 0.999,
+        public epsilon = 1e-8,
+        public t = 0,
+    ) {
+        super();
+        this.weightM = [];
+        this.weightV = [];
+        for(let i=0; i<layer.size; i++) {
+            this.weightM.push(new Float32Array(layer.inputSize));
+            this.weightV.push(new Float32Array(layer.inputSize));
+        }
+        this.biasM = new Float32Array(layer.size);
+        this.biasV = new Float32Array(layer.size);
+    }
+    applyGradients(learnRate: number, batchSize: number, clearGradients: boolean) {
+        const layer = this.layer;
+        const lr = learnRate / batchSize;
+        this.t++;
+        const b1 = this.beta1;
+        const b2 = this.beta2;
+        const eps = this.epsilon;
+        for(let i=0; i<layer.size; i++) {
+            const gB = layer.biasGrads[i]!;
+            this.biasM[i] = b1 * this.biasM[i]! + (1 - b1) * gB;
+            this.biasV[i] = b2 * this.biasV[i]! + (1 - b2) * gB * gB;
+            const mHatB = this.biasM[i]! / (1 - Math.pow(b1, this.t));
+            const vHatB = this.biasV[i]! / (1 - Math.pow(b2, this.t));
+            layer.biases[i]! -= lr * mHatB / (Math.sqrt(vHatB) + eps);
+            for (let j=0; j<layer.inputSize; j++) {
+                const gW = layer.weightGrads[i]![j]!;
+                this.weightM[i]![j] = b1 * this.weightM[i]![j]! + (1 - b1) * gW;
+                this.weightV[i]![j] = b2 * this.weightV[i]![j]! + (1 - b2) * gW * gW;
+                const mHat = this.weightM[i]![j]! / (1 - Math.pow(b1, this.t));
+                const vHat = this.weightV[i]![j]! / (1 - Math.pow(b2, this.t));
+                layer.weights[i]![j]! -= lr * mHat / (Math.sqrt(vHat) + eps);
+            }
+        }
+    }
+}
+
+export class DenseLayer {
+    values_a: Float32Array;
+    values_z: Float32Array;
+    derr_dz: Float32Array;
     weights: Float32Array[];
+    weightGrads: Float32Array[];
     biases: Float32Array;
-    constructor(public inputSize: number, public size: number, public activation: LayerActivation) {
-        this.values = new Float32Array(size);
+    biasGrads: Float32Array;
+    optimizer: LayerOptimizer;
+    constructor(
+        public inputSize: number,
+        public size: number,
+        public activationOrOverride: LayerActivation | "softmax_cross_entropy",
+        optimizer?: LayerOptimizer,
+        weightInit?: WeightRandomizer
+    ) {
+        this.values_a = new Float32Array(size);
+        this.values_z = new Float32Array(size);
+        this.derr_dz = new Float32Array(size);
         this.weights = [];
-        for(let i=0; i<size; i++)
-            this.weights.push(new Float32Array(inputSize));
+        this.weightGrads = [];
         this.biases = new Float32Array(size);
+        this.biasGrads = new Float32Array(size);
+        for(let i=0; i<size; i++) {
+            this.weights.push(new Float32Array(inputSize));
+            this.weightGrads.push(new Float32Array(inputSize));
+        }
+        this.randomizeWeights(weightInit ?? ((activationOrOverride != "softmax_cross_entropy" && activationOrOverride.name.toLowerCase() == "relu") ? HeNormal : XavierUniform));
+        this.optimizer = optimizer ?? new AdamOptimizer(this);
     }
-    forward(input: Float32Array) {
+    randomizeWeights(method: WeightRandomizer = XavierUniform) {
         for(let i=0; i<this.size; i++) {
-            let weightedSum = this.biases[i]!;
             for(let j=0; j<this.inputSize; j++) {
-                weightedSum += input[j]! * this.weights[i]![j]!;
-            }
-            let value = this.activation.forward(weightedSum);
-            this.values[i] = value;
-        }
-    }
-    backward(output: Float32Array) {
-
-    }
-}
-
-
-/////////////////////
-//  ICON GENERATOR //
-/////////////////////
-export class IconGenerationContext2D {
-    layers: {[key: string]: CanvasRenderingContext2D} = {};
-    selectedLayer!: CanvasRenderingContext2D;
-    constructor(public ctx: CanvasRenderingContext2D) {
-        this.setLayer("0");
-    }
-    map(callback: (x: number, y: number, getColor: (x: number, y: number) => Color) => Color): this {
-        const ctx = this.selectedLayer;
-        let data = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
-        let newData = ctx.createImageData(ctx.canvas.width, ctx.canvas.height);
-        const getColor = (x: number, y: number) => {
-            const i = (y * ctx.canvas.width + x) * 4;
-            if(i < 0 || i >= data.data.length)
-                return new Color(0, 0, 0, 0);
-            return new Color(data.data[i]!, data.data[i+1]!, data.data[i+2]!, data.data[i+3]!/255);
-        }
-        for(let y=0; y<ctx.canvas.height; y++) {
-            for(let x=0; x<ctx.canvas.width; x++) {
-                const i = (y * ctx.canvas.width + x) * 4;
-                let color = callback(x, y, getColor);
-                newData.data[i] = Math.floor(color.r);
-                newData.data[i+1] = Math.floor(color.g);
-                newData.data[i+2] = Math.floor(color.b);
-                newData.data[i+3] = Math.floor(color.a*255);
+                this.weights[i]![j] = method.get(this.inputSize, this.size);
             }
         }
-        ctx.putImageData(newData, 0, 0);
-        return this;
     }
-    brightnessToOpacity(invert = false): this {
-        return this.map((x, y, getColor) => {
-            let color = getColor(x, y);
-            let t = color.a;
-            color.a = color.val / 100;
-            if(invert) color.a = 1 - color.a;
-            color.a *= t;
-            let v = invert ? 0 : 255;
-            color.r = v;
-            color.g = v;
-            color.b = v;
-            return color;
-        });
-    }
-    mirrorX(): this {
-        return this.map((x, y, getColor) => getColor(this.ctx.canvas.width - 1 - x, y));
-    }
-    mirrorY(): this {
-        return this.map((x, y, getColor) => getColor(x, this.ctx.canvas.height - 1 - y));
-    }
-    setLayer(name: string): this {
-        let layer = this.layers[name];
-        if(layer == null) {
-            layer = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!;
-            layer.canvas.width = this.ctx.canvas.width;
-            layer.canvas.height = this.ctx.canvas.height;
-            this.layers[name] = layer;
+    forward(input: DenseLayer | Float32Array | number[]) {
+        if(input instanceof DenseLayer)
+            input = input.values_a;
+        for(let i=0; i<this.size; i++) {
+            let z = this.biases[i]!;
+            for(let j=0; j<this.inputSize; j++)
+                z += input[j]! * this.weights[i]![j]!;
+            if(this.activationOrOverride != "softmax_cross_entropy") {
+                let a = this.activationOrOverride.activate(z);
+                this.values_a[i] = a;
+            }
+            this.values_z[i] = z;
         }
-        this.selectedLayer = layer;
-        return this;
-    }
-    flatten(): this {
-        const ctx = this.ctx;
-        let flattenedData = ctx.createImageData(ctx.canvas.width, ctx.canvas.height);
-        let layerDatas = [];
-        for(const name in this.layers) {
-            let layer = this.layers[name]!;
-            let data = layer.getImageData(0, 0, layer.canvas.width, layer.canvas.height);
-            layerDatas.push(data);
+        if(this.activationOrOverride == "softmax_cross_entropy") {
+            softmaxLayer(this);
         }
-        for(let y=0; y<ctx.canvas.height; y++) {
-            for(let x=0; x<ctx.canvas.width; x++) {
-                const i = (y * ctx.canvas.width + x) * 4;
-                for(let data of layerDatas) {
-                    let srcA = data.data[i+3]!/255;
-                    let dstA = flattenedData.data[i+3]!/255;
-                    let newA = srcA + dstA * (1 - srcA);
-                    if(newA > 0) {
-                        flattenedData.data[i] = (data.data[i]! * srcA + flattenedData.data[i]! * dstA * (1 - srcA)) / newA;
-                        flattenedData.data[i+1] = (data.data[i+1]! * srcA + flattenedData.data[i+1]! * dstA * (1 - srcA)) / newA;
-                        flattenedData.data[i+2] = (data.data[i+2]! * srcA + flattenedData.data[i+2]! * dstA * (1 - srcA)) / newA;
-                    } else {
-                        flattenedData.data[i] = 0;
-                        flattenedData.data[i+1] = 0;
-                        flattenedData.data[i+2] = 0;
-                    }
-                    flattenedData.data[i+3] = newA * 255;
-                }
+    }
+    clearGradients() {
+        for(let i=0; i<this.size; i++) {
+            this.biasGrads![i] = 0;
+            for(let j=0; j<this.inputSize; j++) {
+                this.weightGrads![i]![j] = 0;
             }
         }
-        ctx.putImageData(flattenedData, 0, 0);
-        for(const name in this.layers) {
-            let layer = this.layers[name]!;
-            layer.canvas.remove();
-        }
-        this.layers = {};
-        this.setLayer("0");
-        this.selectedLayer.drawImage(this.ctx.canvas, 0, 0);
-        return this;
     }
-}
-
-export async function generateIcon2D(width: number, height: number, callback: (ctx: IconGenerationContext2D) => void) {
-    let canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    let ctx = new IconGenerationContext2D(canvas.getContext("2d", { willReadFrequently: true })!);
-    callback(ctx);
-    ctx.flatten();
-    let url = await new Promise<string>(res => {
-        canvas.toBlob(blob => {
-            if(!blob)
-                return;
-            const url = URL.createObjectURL(blob);
-            res(url);
-        }, "image/png");
-    })
-    canvas.remove();
-    return url;
-}
-
-
-////////////////////////
-//  UI DROPDOWN CLASS //
-////////////////////////
-export class UiContextMenu {
-    position: Vec2;
-    containerEl: HTMLDivElement;
-    constructor(x: number, y: number) {
-        this.position = new Vec2(x, y);
-        this.containerEl = document.createElement("div");
-    }
-}
-
-
-//////////////////////
-//  UI BUTTON CLASS //
-//////////////////////
-export class UiButton {
-    containerEl: HTMLDivElement;
-    labelEl: HTMLDivElement;
-    buttonEl: HTMLButtonElement;
-    isHovering = false;
-    mouseEnterEvent: Signal<[]> = new Signal();
-    mouseLeaveEvent: Signal<[]> = new Signal();
-    prefixIcons: UiButtonIcon[] = [];
-    suffixIcons: UiButtonIcon[] = [];
-    textContentChangedEvent: Signal<[text:string]> = new Signal({onConnect:(conn)=>{conn.fire(this._textContent)}});
-    _textContent = "Button";
-    get textContent() { return this._textContent; }
-    set textContent(value: string) {
-        this._textContent = value;
-        this.textContentChangedEvent.fire(value);
-    }
-    textSizeChangedEvent: Signal<[size:number]> = new Signal({onConnect:(conn)=>{conn.fire(this._textSize)}});
-    _textSize = 16;
-    get textSize() { return this._textSize; }
-    set textSize(value: number) {
-        this._textSize = value;
-        this.textSizeChangedEvent.fire(value);
-    }
-    paddingXChangedEvent: Signal<[value:number]> = new Signal({onConnect:(conn)=>{conn.fire(this._paddingX)}});
-    _paddingX = 4;
-    get paddingX() { return this._paddingX; }
-    set paddingX(value: number) {
-        this._paddingX = value;
-    }
-    paddingYChangedEvent: Signal<[value:number]> = new Signal({onConnect:(conn)=>{conn.fire(this._paddingY)}});
-    _paddingY = 8;
-    get paddingY() { return this._paddingY; }
-    set paddingY(value: number) {
-        this._paddingY = value;
-    }
-    constructor() {
-        this.containerEl = document.createElement("div");
-        document.body.appendChild(this.containerEl);
-        this.containerEl.style = `
-            position: relative;
-            width: fit-content;
-            height: fit-content;
-            background-color: white;
-            border-radius: 4px;
-            border: 1px solid black;
-            user-select: none;
-            display: flex;
-            flex-direction: row;
-            justify-content: center;
-            align-items: center;
-        `;
-        this.paddingXChangedEvent.connect(value => {
-            this.containerEl.style.padding = `${value}px ${this.paddingY}px`;
-            this.containerEl.style.gap = `${value}px`;
-        });
-        this.paddingYChangedEvent.connect(value => {
-            this.containerEl.style.padding = `${this.paddingX}px ${value}px`;
-        });
-        this.buttonEl = document.createElement("button");
-        this.containerEl.appendChild(this.buttonEl);
-        this.buttonEl.style = `
-            padding: 0;
-            margin: 0;
-            border: none;
-            background-color: transparent;
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            left: 0px;
-            top: 0px;
-            cursor: pointer;
-        `;
-        this.labelEl = document.createElement("div");
-        this.containerEl.appendChild(this.labelEl);
-        this.labelEl.style = `
-            color: black;
-            font-family: Arial;
-            width: fit-content;
-            height: fit-content;
-            pointer-events: none;
-        `;
-        this.textSizeChangedEvent.connect(size => {
-            this.labelEl.style.fontSize = `${size}px`;
-        });
-        this.textContentChangedEvent.connect(text => {
-            this.labelEl.textContent = text;
-        });
-        this.buttonEl.addEventListener("mouseenter", e => {
-            this.isHovering = true;
-            this.mouseEnterEvent.fire();
-        });
-        this.buttonEl.addEventListener("mouseleave", e => {
-            this.isHovering = false;
-            this.mouseLeaveEvent.fire();
-        });
-    }
-    addIcon(url: string, position: "prefix" | "suffix" = "prefix") {
-        let icon = new UiButtonIcon(url);
-        if(position == "prefix") this.labelEl.before(icon.iconEl)
-        else this.labelEl.after(icon.iconEl);
-        icon.connections.add(this.textSizeChangedEvent.connect(size => {
-            icon.iconEl.style.width = `${size}px`;
-            icon.iconEl.style.height = `${size}px`;
-        }));
-    }
-    remove() {
-        this.containerEl.remove();
-    }
-}
-
-export class UiButtonIcon {
-    iconEl: HTMLImageElement;
-    connections = new ConnectionGroup();
-    constructor(url: string) {
-        this.iconEl = document.createElement("img");
-        this.iconEl.src = url;
-    }
-    remove() {
-        this.connections.disconnectAll();
-        this.iconEl.remove();
-    }
-}
-
-export class UiBtnHoverFxSolidColor {
-    duration = 0.1;
-    connections = new ConnectionGroup();
-    constructor(public button: UiButton, color: Color, hoverColor: Color) {
-        this.color = color;
-        this.hoverColor = hoverColor;
-        this.connections.add(button.mouseEnterEvent.connect(() => {
-            button.containerEl.animate([
-                {backgroundColor:this.color.toString()},
-                {backgroundColor:this.hoverColor.toString()},
-            ], {duration:this.duration*1000, easing:"ease"});
-            button.containerEl.style.backgroundColor = this.hoverColor.toString();
-        }));
-        this.connections.add(button.mouseLeaveEvent.connect(() => {
-            button.containerEl.animate([
-                {backgroundColor:this.hoverColor.toString()},
-                {backgroundColor:this.color.toString()},
-            ], {duration:this.duration*1000, easing:"ease"});
-            button.containerEl.style.backgroundColor = this.color.toString();
-        }));
-        if(button.isHovering) {
-            this.button.containerEl.style.backgroundColor = this.hoverColor.toString();
-        } else {
-            this.button.containerEl.style.backgroundColor = this.color.toString();
+    backwardTarget(input: DenseLayer | Float32Array | number[], output: Float32Array | number[], error: LayerError = MseError, accumulate = true) {
+        if(input instanceof DenseLayer)
+            input = input.values_a;
+        for(let i=0; i<this.size; i++) {
+            let derr_dz;
+            if(this.activationOrOverride == "softmax_cross_entropy") {
+                derr_dz = this.values_a[i]! - output[i]!;
+                this.derr_dz[i] = derr_dz;
+            } else {
+                const derr_da = error.derr_da(this, output, i);
+                const da_dz = this.activationOrOverride.da_dz(this.values_z[i]!, this.values_a[i]!);
+                derr_dz = derr_da * da_dz;
+                this.derr_dz[i] = derr_dz;
+            }
+            for(let j=0; j<this.inputSize; j++) {
+                const dz_dwij = input[j]!;
+                const derr_dwij = derr_dz * dz_dwij;
+                if(accumulate) this.weightGrads[i]![j]! += derr_dwij;
+                else this.weightGrads[i]![j]! = derr_dwij;
+            }
+            if(accumulate) this.biasGrads[i]! += derr_dz;
+            else this.biasGrads[i]! = derr_dz;
         }
     }
-
-    _color!: Color;
-    set color(value: Color) {
-        this._color = value;
-        if(!this.button.isHovering)
-            this.button.containerEl.style.backgroundColor = value.toString();
+    backwardLayer(input: DenseLayer | Float32Array | number[], output: DenseLayer, accumulate = true) {
+        if(input instanceof DenseLayer)
+            input = input.values_a;
+        for(let i=0; i<this.size; i++) {
+            let derr_dai = 0;
+            if(this.activationOrOverride == "softmax_cross_entropy")
+                throw new Error("Cannot use softmax/cross-entropy on a hidden layer");
+            const dai_dzi = this.activationOrOverride.da_dz(this.values_z[i]!, this.values_a[i]!);
+            for(let j=0; j<output.size; j++)
+                derr_dai += output.derr_dz[j]! * output.weights[j]![i]!;
+            const derr_dz = derr_dai * dai_dzi
+            this.derr_dz[i] = derr_dz;
+            for(let j=0; j<this.inputSize; j++) {
+                const dz_dwij = input[j]!;
+                const derr_dwij = derr_dz * dz_dwij;
+                if(accumulate) this.weightGrads[i]![j]! += derr_dwij;
+                else this.weightGrads[i]![j]! = derr_dwij;
+            }
+            if(accumulate) this.biasGrads[i]! += derr_dz;
+            else this.biasGrads[i]! = derr_dz;
+        }
     }
-    get color() { return this._color; }
-    _hoverColor!: Color;
-    set hoverColor(value: Color) {
-        this._hoverColor = value;
-        if(this.button.isHovering)
-            this.button.containerEl.style.backgroundColor = value.toString();
+    applyGradients(learnRate: number, batchSize: number, clearGradients = true) {
+        this.optimizer.applyGradients(learnRate, batchSize, clearGradients);
     }
-    get hoverColor() { return this._hoverColor; }
+}
 
-    remove() {
-        this.connections.disconnectAll();
-        this.button.containerEl.style.backgroundColor = this.color.toString();
+export class DenseNetwork {
+    public layers: DenseLayer[] = [];
+    input: Float32Array;
+    batches = 0;
+    constructor(public inputSize: number, layers: [size: number, activation: LayerActivation, optimizer?: LayerOptimizer, weightInit?: WeightRandomizer][]) {
+        this.input = new Float32Array(inputSize);
+        for(let i=0; i<layers.length; i++) {
+            let layer = new DenseLayer(i==0 ? inputSize : layers[i-1]![0], layers[i]![0], layers[i]![1], layers[i]![2], layers[i]![3]);
+            this.layers.push(layer);
+        }
+    }
+    forward(values?: Float32Array | number[]) {
+        let input: DenseLayer | Float32Array = this.input;
+        if(values) this.input.set(values);
+        for(const layer of this.layers) {
+            layer.forward(input);
+            input = layer;
+        }
+    }
+    backward(output: Float32Array | number[], error: LayerError = MseError) {
+        for(let i=this.layers.length-1; i>=0; i--) {
+            const layer = this.layers[i]!;
+            const prevLayer = i == 0 ? this.input : this.layers[i-1]!;
+            if(i == this.layers.length-1) {
+                layer.backwardTarget(prevLayer, output, error, true);
+            } else {
+                layer.backwardLayer(prevLayer, this.layers[i+1]!, true);
+            }
+        }
+        this.batches++;
+    }
+    applyGradient(learnRate: number) {
+        for(const layer of this.layers) {
+            layer.applyGradients(learnRate, this.batches, true);
+        }
+        this.batches = 0;
     }
 }
