@@ -156,6 +156,9 @@ export class Vec3 {
     length(): number {
         return Math.sqrt(this.dot(this));
     }
+    lengthSq(): number {
+        return this.dot(this);
+    }
     dot(other: Vec3): number {
         return this._x * other._x + this._y * other._y + this._z * other._z;
     }
@@ -186,6 +189,12 @@ export class Vec3 {
     }
     distToC(x: number, y: number, z: number): number {
         return this.subC(x, y, z).length();
+    }
+    distSqTo(other: Vec3): number {
+        return this.sub(other).lengthSq();
+    }
+    distSqToC(x: number, y: number, z: number): number {
+        return this.subC(x, y, z).lengthSq();
     }
     strictEquals(other: Vec3): boolean {
         return this._x == other._x && this._y == other._y && this._z == other._z;
@@ -663,6 +672,9 @@ export class Vec2 {
     length(): number {
         return Math.sqrt(this.dot(this));
     }
+    lengthSq(): number {
+        return this.dot(this);
+    }
     dot(other: Vec2): number {
         return this._x * other._x + this._y * other._y;
     }
@@ -683,6 +695,12 @@ export class Vec2 {
     }
     distToC(x: number, y: number): number {
         return this.subC(x, y).length();
+    }
+    distSqTo(other: Vec2): number {
+        return this.sub(other).lengthSq();
+    }
+    distSqToC(x: number, y: number): number {
+        return this.subC(x, y).lengthSq();
     }
     strictEquals(other: Vec2): boolean {
         return this._x == other._x && this._y == other._y;
@@ -2090,13 +2108,16 @@ export class Rect2D {
 
 export class Circle2D {
     constructor(public position: Vec2, public radius: number) {
-
+        
     }
     getRectCollision(rect: Rect2D): Shape2DCollision {
         let res = new Point2D(this.position).getRectCollision(rect);
         res.distance -= this.radius;
         if(res.distance <= 0) res.inside = true;
         return res;
+    }
+    isInsideCircle(other: Circle2D): boolean {
+        return this.position.distTo(other.position) <= this.radius + other.radius
     }
     getCircleCollision(other: Circle2D): Shape2DCollision {
         let dist = this.position.distTo(other.position) - this.radius - other.radius;
@@ -2148,17 +2169,19 @@ export class PhysicsPart2D {
     hasCollision = true;
     color: Color;
     shaderObject!: WGL2Object;
-    mass = 1;
-    restitution = 1;
+    mass: number;
+    restitution: number;
     gravity = 500;
-    collisionEvent: Signal<[collision: Shape2DCollision, partA: PhysicsPart2D, partB: PhysicsPart2D]> = new Signal();
+    collisionEvent: Signal<[part: PhysicsPart2D]> = new Signal();
     constructor(
         shader: WGL2Shader,
         position: Vec2,
         size: Vec2,
         color = new Color(0, 0, 0),
         shapeType: PhysicsPart2DShape = "circle",
-        anchored = false
+        anchored = false,
+        restitution = 1,
+        mass = 1,
     ) {
         this.shader = shader;
         this.shapeType = shapeType;
@@ -2166,6 +2189,8 @@ export class PhysicsPart2D {
         this.size = size;
         this.color = color;
         this.anchored = anchored;
+        this.restitution = restitution;
+        this.mass = mass;
         this.rotation = 0;
     }
 
@@ -2178,7 +2203,7 @@ export class PhysicsPart2D {
         this.uColor = value.getUniform("u_color");
         this.uView = value.getUniform("u_view");
         if(this.shaderObject)
-            this.shaderObject.remove();
+            this.shaderObject.delete();
         this.shaderObject = value.createObject();
         this._updateShaderObjectData();
     }
@@ -2303,33 +2328,76 @@ export class PhysicsPart2D {
         delete this._outdatedViewMatrix;
     }
 
-    resolveCircleCircleCollision(other: PhysicsPart2D, collision: Shape2DCollision) {
-        if(!collision.inside)
+    resolveCircleCircleCollision(other: PhysicsPart2D) {
+        const circleA = this.shape as Circle2D;
+        const circleB = other.shape as Circle2D;
+        let dist = this.position.distTo(other.position) - circleA.radius - circleB.radius;
+        if(dist > 0)
             return;
-        const velAlongNormal = other.velocity.sub(this.velocity).dot(collision.normal);
+        let normal = this.position.look(other.position);
+        const velAlongNormal = other.velocity.sub(this.velocity).dot(normal);
         const mi = (1/this.mass + 1/other.mass);
         if (velAlongNormal < 0) {
             const restitution = Math.min(this.restitution, other.restitution);
             const j = -(1+restitution) * velAlongNormal / mi;
-            this.velocity.addScaledSelf(collision.normal, j * -1 / this.mass);
-            other.velocity.addScaledSelf(collision.normal, j * 1 / other.mass);
+            this.velocity.addScaledSelf(normal, j * -1 / this.mass);
+            other.velocity.addScaledSelf(normal, j * 1 / other.mass);
         }
-        const correction = collision.normal.rescale(Math.max(-collision.distance - 1e-4, 0) / mi * 0.8);
+        const correction = normal.rescale(Math.max(-dist - 1e-4, 0) / mi * 0.8);
         this.position.addScaledSelf(correction, -1/this.mass);
         other.position.addScaledSelf(correction, 1/other.mass);
+        this.collisionEvent.fire(other);
+        other.collisionEvent.fire(this);
     }
 
-    resolveCircleAnchoredRectCollision(other: PhysicsPart2D, collision: Shape2DCollision) {
-        if(!collision.inside)
+    resolveCircleAnchoredRectCollision(other: PhysicsPart2D) {
+        const circle = this.shape as Circle2D;
+        const rect = other.shape as Rect2D;
+        let diff = this.position.sub(rect.position);
+        let dx = diff.dot(rect.right);
+        let dy = diff.dot(rect.up);
+        if(Math.abs(dx) >= rect.size.x + circle.radius || Math.abs(dy) >= rect.size.y + circle.radius)
             return;
-        const velAlongNormal = this.velocity.sub(other.velocity).dot(collision.normal);
+        let d1 = Math.abs(this.position.sub(rect.position.addScaled(rect.up, rect.size.y)).dot(rect.up));
+        let d2 = Math.abs(this.position.sub(rect.position.addScaled(rect.up, -rect.size.y)).dot(rect.up));
+        let d3 = Math.abs(this.position.sub(rect.position.addScaled(rect.right, rect.size.x)).dot(rect.right));
+        let d4 = Math.abs(this.position.sub(rect.position.addScaled(rect.right, -rect.size.x)).dot(rect.right));
+        let minIndex = 0;
+        let minDist = d1;
+        if(d2 < minDist) { minDist = d2; minIndex = 1; }
+        if(d3 < minDist) { minDist = d3; minIndex = 2; }
+        if(d4 < minDist) { minDist = d4; minIndex = 3; }
+        if(minDist > circle.radius)
+            return;
+        let edge!: Vec2;
+        let normal!: Vec2;
+        switch(minIndex) {
+            case 0:
+                edge = rect.position.addScaled(rect.right, dx).addScaledSelf(rect.up, rect.size.y);
+                normal = rect.up;
+                break;
+            case 1:
+                edge = rect.position.addScaled(rect.right, dx).addScaledSelf(rect.up, -rect.size.y);
+                normal = rect.up.neg();
+                break;
+            case 2:
+                edge = rect.position.addScaled(rect.up, dy).addScaledSelf(rect.right, rect.size.x);
+                normal = rect.right;
+                break;
+            case 3:
+                edge = rect.position.addScaled(rect.up, dy).addScaledSelf(rect.right, -rect.size.x);
+                normal = rect.right.neg();
+                break;
+        }
+        const velAlongNormal = this.velocity.sub(other.velocity).dot(normal);
         if (velAlongNormal < 0) {
             const restitution = Math.min(this.restitution, other.restitution);
             const j = -(1+restitution) * velAlongNormal;
-            this.velocity.addScaledSelf(collision.normal, j);
+            this.velocity.addScaledSelf(normal, j);
         }
-        const radius = Math.max(this.size.x, this.size.y);
-        this.position = collision.collision.addScaled(collision.normal, radius + 1e-6);
+        this.position = edge.addScaledSelf(normal, circle.radius + 1e-6);
+        this.collisionEvent.fire(other);
+        other.collisionEvent.fire(this);
     }
 
     render(camera?: Camera2D) {
@@ -2450,41 +2518,36 @@ export class Physics2DEnvironment {
     addPart(part: PhysicsPart2D) {
         this.parts.push(part);
     }
-    update(dt: number) {
+    removePart(part: PhysicsPart2D) {
+        const index = this.parts.indexOf(part);
+        if(index == -1) return;
+        this.parts.splice(index, 1);
+    }
+    update(dt: number, solvesCount = 3) {
         for(let part of this.parts) {
             if(part.anchored) {
                 part.velocity = part.position.sub(part.lastPosition).mulF(1/dt);
                 part.lastPosition.setC(part.position.x, part.position.y);
             } else {
                 part.lastPosition.setC(part.position.x, part.position.y);
+                part.velocity.y -= part.gravity * dt;
+                part.position.addScaledSelf(part.velocity, dt);
             }
         }
-        for(let i=0; i<3; i++) {
-            for(let part of this.parts) {
-                if(part.anchored) continue;
-                if(i==0) {
-                    part.velocity.y -= part.gravity * dt;
-                    part.position.addScaledSelf(part.velocity, dt);
-                }
-                if(part.shapeType == "circle" && !part.anchored) {
-                    for(let other of this.parts) {
-                        if(!other.hasCollision) continue;
-                        if(other == part) continue;
-                        if(other.shapeType == "circle" && !other.anchored) {
-                            let collision = (part.shape as Circle2D).getCircleCollision(other.shape as Circle2D);
-                            part.resolveCircleCircleCollision(other, collision);
-                            if(collision.inside) {
-                                part.collisionEvent.fire(collision, part, other);
-                                other.collisionEvent.fire(collision, part, other);
-                            }
-                        } else if(other.shapeType == "rect" && other.anchored) {
-                            let collision = (part.shape as Circle2D).getRectCollision(other.shape as Rect2D);
-                            part.resolveCircleAnchoredRectCollision(other, collision);
-                            if(collision.inside) {
-                                part.collisionEvent.fire(collision, part, other);
-                                other.collisionEvent.fire(collision, part, other);
-                            }
-                        }
+        for(let i=0; i<solvesCount; i++) {
+            for(let j=0; j<this.parts.length; j++) {
+                const part = this.parts[j]!;
+                if(!part.hasCollision) continue;
+                for(let k=j+1; k<this.parts.length; k++) {
+                    const other = this.parts[k]!;
+                    if(!other.hasCollision) continue;
+                    if(part.anchored && other.anchored) continue;
+                    if(part.shapeType === "circle" && other.shapeType === "circle") {
+                        part.resolveCircleCircleCollision(other);
+                    } else if(part.shapeType === "circle" && other.shapeType === "rect") {
+                        part.resolveCircleAnchoredRectCollision(other);
+                    } else if(part.shapeType === "rect" && other.shapeType === "circle") {
+                        other.resolveCircleAnchoredRectCollision(part);
                     }
                 }
             }
@@ -2879,7 +2942,7 @@ export class WGL2Object {
         this.cVao.setActive();
         this.gl.drawArrays(this.gl.POINTS, 0, this.vertexCount);
     }
-    remove() {
+    delete() {
         for(const name in this.cBufferByName) {
             this.cBufferByName[name]!.delete();
         }
