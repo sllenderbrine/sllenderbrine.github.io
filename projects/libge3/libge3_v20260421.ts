@@ -2393,7 +2393,7 @@ export class Physics2DEnvironment {
     partObserver: Signal<[obj: any]> = new Signal({onConnect:(conn)=>{for(const obj of this.parts)conn.fire(obj);}});
     parts: PhysicsPart2D[] = [];
     defaultShader: WGL2Shader;
-    constructor(gl: WebGL2RenderingContext) {
+    constructor(public gl: WebGL2RenderingContext) {
         this.defaultShader = new WGL2Shader(
             gl,
             `#version 300 es
@@ -2458,6 +2458,7 @@ export class Physics2DEnvironment {
         }
     }
     renderAll(camera: Camera2D) {
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
         for(let part of this.parts) {
             part.render(camera);
         }
