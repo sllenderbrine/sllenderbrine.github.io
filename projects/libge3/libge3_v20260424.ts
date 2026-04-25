@@ -3903,3 +3903,109 @@ export class DenseNetwork {
         this.batches = 0;
     }
 }
+
+
+//////////////////
+//  UI ELEMENTS //
+//////////////////
+export class HorizontalSlider {
+    containerEl: HTMLDivElement;
+    handleEl: HTMLButtonElement;
+    valueEl: HTMLButtonElement;
+    dragConnections = new ConnectionGroup();
+    inputEvent: Signal<[value: number]> = new Signal({onConnect:(conn)=>{conn.fire(this.value);}});
+    constructor(
+        min: number,
+        max: number,
+        step: number,
+        value: number = (min + max) / 2,
+    ) {
+        this.containerEl = document.createElement("div");
+        document.body.appendChild(this.containerEl);
+        this.containerEl.style = `width:100px;height:16px;position:relative;border:2px solid black;`;
+        this.valueEl = document.createElement("button");
+        this.valueEl.style = `border:none;padding:0px;width:100%;height:100%;
+        position:absolute;left:0;top:0;background-color:rgb(142, 187, 255);`;
+        this.containerEl.appendChild(this.valueEl);
+        this.handleEl = document.createElement("button");
+        this.handleEl.style = `width:20px;height:20px;position:absolute;left:100%;top:50%;
+        transform:translate(-50%,-50%);background-color:rgb(142, 187, 255);border:2px solid black;`;
+        this.valueEl.appendChild(this.handleEl);
+        this.valueEl.addEventListener("mousedown", e => {
+            this.dragConnections.add(new HtmlConnection(window, "mousemove", e => {
+                let rect = this.containerEl.getBoundingClientRect();
+                let t = (e.clientX - rect.left) / rect.width;
+                this.value = t * (this.max - this.min) + this.min;
+                this.inputEvent.fire(this.value);
+            }));
+            this.dragConnections.add(new HtmlConnection(window, "mouseup", e => {
+                this.dragConnections.disconnectAll();
+            }));
+        });
+        this.handleEl.addEventListener("mousedown", e => {
+            let x0 = e.clientX;
+            this.dragConnections.add(new HtmlConnection(window, "mousemove", e => {
+                let dt = (e.clientX - x0) / this.containerEl.offsetWidth;
+                this.value += dt * (this.max - this.min) + this.min;
+
+                this.inputEvent.fire(this.value);
+            }));
+            this.dragConnections.add(new HtmlConnection(window, "mouseup", e => {
+                this.dragConnections.disconnectAll();
+            }));
+        });
+        this.min = min;
+        this.max = max;
+        this.step = step;
+        this.value = value;
+    }
+
+    _value = 0;
+    get value() { return this._value; }
+    set value(value: number) {
+        if(this._value === value)
+            return;
+        this._value = value;
+        this.updateValueClamp();
+        this.updateValueStyle();
+    }
+    updateValueClamp() {
+        this._value = Math.floor(this._value/this._step)*this._step;
+        this._value = EMath.clamp(this._value, this._min, this._max);
+    }
+    updateValueStyle() {
+        let t = (this._value - this._min) / (this._max - this._min);
+        t = EMath.clamp(t, 0, 1);
+        this.valueEl.style.width = `${t * 100}%`;
+    }
+
+    _min = 0;
+    get min() { return this._min; }
+    set min(value: number) {
+        if(this._min === value)
+            return;
+        this._min = value;
+        this.updateValueClamp();
+        this.updateValueStyle();
+    }
+
+    _max = 0;
+    get max() { return this._max; }
+    set max(value: number) {
+        if(this._max === value)
+            return;
+        this._max = value;
+        this.updateValueClamp();
+        this.updateValueStyle();
+    }
+
+    _step = 0;
+    get step() { return this._step; }
+    set step(value: number) {
+        if(this._step === value)
+            return;
+        this._step = value;
+        this.updateValueClamp();
+        this.updateValueStyle();
+    }
+}
