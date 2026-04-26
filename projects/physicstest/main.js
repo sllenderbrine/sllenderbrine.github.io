@@ -1,5 +1,5 @@
 import * as libge3 from "../libge3/libge3_v20260424.js";
-const { Camera2D, Physics2DEnvironment, PhysicsPart2D, Color, Vec2, Noise, EMath } = libge3;
+const { Camera2D, Physics2DEnvironment, PhysicsPart2D, Color, Vec2, Noise, EMath, delay } = libge3;
 const canvas = document.createElement("canvas");
 canvas.width = 1280;
 canvas.height = 720;
