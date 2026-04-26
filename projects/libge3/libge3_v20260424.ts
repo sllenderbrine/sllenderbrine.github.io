@@ -3905,9 +3905,9 @@ export class DenseNetwork {
 }
 
 
-//////////////////
-//  UI ELEMENTS //
-//////////////////
+///////////////////
+//  UI ELEMENTS  //
+///////////////////
 export class HorizontalSlider {
     containerEl: HTMLDivElement;
     handleEl: HTMLButtonElement;
@@ -3922,32 +3922,42 @@ export class HorizontalSlider {
     ) {
         this.containerEl = document.createElement("div");
         document.body.appendChild(this.containerEl);
-        this.containerEl.style = `width:100px;height:16px;position:relative;border:2px solid black;`;
+        this.containerEl.style = `width:150px;height:14px;position:relative;
+        border:2px solid white;cursor:pointer;border-radius:4px;
+        outline:2px solid black;background-color:rgb(20,20,20);
+        margin:2px;`;
         this.valueEl = document.createElement("button");
         this.valueEl.style = `border:none;padding:0px;width:100%;height:100%;
-        position:absolute;left:0;top:0;background-color:rgb(142, 187, 255);`;
+        position:absolute;left:0;top:0;background-color:rgb(142, 187, 255);
+        cursor:pointer;border-radius:2px;`;
         this.containerEl.appendChild(this.valueEl);
         this.handleEl = document.createElement("button");
-        this.handleEl.style = `width:20px;height:20px;position:absolute;left:100%;top:50%;
-        transform:translate(-50%,-50%);background-color:rgb(142, 187, 255);border:2px solid black;`;
+        this.handleEl.style = `width:20px;height:20px;position:absolute;
+        left:100%;top:50%;transform:translate(-50%,-50%);
+        background-color:rgb(142, 187, 255);border:2px solid white;
+        cursor:pointer;border-radius:50%;outline:2px solid black;`;
         this.valueEl.appendChild(this.handleEl);
-        this.valueEl.addEventListener("mousedown", e => {
-            this.dragConnections.add(new HtmlConnection(window, "mousemove", e => {
+        this.containerEl.addEventListener("mousedown", e => {
+            if(e.target == this.handleEl)
+                return;
+            const update = (e: MouseEvent) => {
                 let rect = this.containerEl.getBoundingClientRect();
                 let t = (e.clientX - rect.left) / rect.width;
                 this.value = t * (this.max - this.min) + this.min;
                 this.inputEvent.fire(this.value);
-            }));
+            }
+            update(e);
+            this.dragConnections.add(new HtmlConnection(window, "mousemove", update));
             this.dragConnections.add(new HtmlConnection(window, "mouseup", e => {
                 this.dragConnections.disconnectAll();
             }));
         });
         this.handleEl.addEventListener("mousedown", e => {
             let x0 = e.clientX;
+            let v0 = this.value;
             this.dragConnections.add(new HtmlConnection(window, "mousemove", e => {
                 let dt = (e.clientX - x0) / this.containerEl.offsetWidth;
-                this.value += dt * (this.max - this.min) + this.min;
-
+                this.value = v0 + dt * (this.max - this.min) + this.min;
                 this.inputEvent.fire(this.value);
             }));
             this.dragConnections.add(new HtmlConnection(window, "mouseup", e => {
@@ -3961,6 +3971,9 @@ export class HorizontalSlider {
     }
 
     _value = 0;
+    _width = 0;
+    _widthLerp = 0;
+    _isAnimating = false;
     get value() { return this._value; }
     set value(value: number) {
         if(this._value === value)
@@ -3976,7 +3989,31 @@ export class HorizontalSlider {
     updateValueStyle() {
         let t = (this._value - this._min) / (this._max - this._min);
         t = EMath.clamp(t, 0, 1);
-        this.valueEl.style.width = `${t * 100}%`;
+        this._width = t;
+        this.updateValueAnimation();
+    }
+    updateValueAnimation() {
+        if(this._isAnimating)
+            return;
+        let frameTime = performance.now();
+        let update = () => {
+            let now = performance.now();
+            let deltaTime = (now - frameTime) / 1000;
+            frameTime = now;
+            this._widthLerp += Math.sign(this._width - this._widthLerp) * deltaTime * 1;
+            this._widthLerp = EMath.lerp(this._widthLerp, this._width, deltaTime * 10);
+            let dist = Math.abs(this._width - this._widthLerp);
+            if(dist < deltaTime * 2 || dist > 10 || isNaN(this._widthLerp)) {
+                this._widthLerp = this._width;
+                this.valueEl.style.width = `${this._widthLerp * 100}%`;
+                this._isAnimating = false;
+                return;
+            }
+            this.valueEl.style.width = `${this._widthLerp * 100}%`;
+            requestAnimationFrame(update);
+        }
+        this._isAnimating = true;
+        update();
     }
 
     _min = 0;
@@ -4007,5 +4044,56 @@ export class HorizontalSlider {
         this._step = value;
         this.updateValueClamp();
         this.updateValueStyle();
+    }
+}
+
+export class Checkbox {
+    containerEl: HTMLDivElement;
+    svgEl: SVGElement;
+    inputEvent: Signal<[value: boolean]> = new Signal({onConnect:(conn)=>{conn.fire(this.isChecked);}});
+    constructor(value = false) {
+        this.containerEl = document.createElement("div");
+        this.containerEl.style = `width:16px;height:16px;background-color:white;outline:2px solid black;
+        border:2px solid white;cursor:pointer;color:white;display:flex;user-select:none;
+        justify-content:center;align-items:center;border-radius:2px;margin:2px;`;
+        document.body.appendChild(this.containerEl);
+        this.containerEl.addEventListener("mousedown", e => {
+            this.isChecked = !this.isChecked;
+            this.inputEvent.fire(this.isChecked);
+        });
+        this.containerEl.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -4 7 7" style="width:60%;height:60%;pointer-events:none;">
+                <path d="M 0 0 L 1 -1 L 2 1 L 6 -4 L 7 -3 L 2 3 Z" fill="currentColor"/>
+            </svg>
+        `;
+        this.svgEl = this.containerEl.querySelector("svg")!;
+        this.isChecked = value;
+    }
+    _isChecked = false;
+    get isChecked() { return this._isChecked; }
+    set isChecked(value: boolean) {
+        this._isChecked = value;
+        this.updateCheckedStyle();
+    }
+    updateCheckedStyle() {
+        if(this._isChecked) {
+            this.svgEl.style.display = "block";
+            this.svgEl.animate([
+                {scale:"0"},
+                {scale:"1"},
+            ], {duration:100});
+            this.containerEl.animate([
+                {backgroundColor:"rgb(200, 200, 200)"},
+                {backgroundColor:"rgb(142, 187, 255)"},
+            ], {duration:100});
+            this.containerEl.style.backgroundColor = "rgb(142, 187, 255)";
+        } else {
+            this.svgEl.style.display = "none";
+            this.containerEl.animate([
+                {backgroundColor:"rgb(142, 187, 255)"},
+                {backgroundColor:"rgb(200, 200, 200)"},
+            ], {duration:100});
+            this.containerEl.style.backgroundColor = "rgb(200, 200, 200)";
+        }
     }
 }
