@@ -1,4 +1,4 @@
-// 2D/3D JS Vector Library
+// 2D/3D JS Vector Library v20260426
 // https://github.com/sllenderbrine
 
 export * from "./Mat3.js";
