@@ -1,0 +1,8 @@
+// 2D/3D JS Vector Library
+// https://github.com/sllenderbrine
+export * from "./Mat3.js";
+export * from "./Mat4.js";
+export * from "./Vec2.js";
+export * from "./Vec3.js";
+export * from "./Camera3D.js";
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiaW5kZXguanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyJpbmRleC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQSwwQkFBMEI7QUFDMUIsbUNBQW1DO0FBRW5DLGNBQWMsV0FBVyxDQUFDO0FBQzFCLGNBQWMsV0FBVyxDQUFDO0FBQzFCLGNBQWMsV0FBVyxDQUFDO0FBQzFCLGNBQWMsV0FBVyxDQUFDO0FBQzFCLGNBQWMsZUFBZSxDQUFDIiwic291cmNlc0NvbnRlbnQiOlsiLy8gMkQvM0QgSlMgVmVjdG9yIExpYnJhcnlcclxuLy8gaHR0cHM6Ly9naXRodWIuY29tL3NsbGVuZGVyYnJpbmVcclxuXHJcbmV4cG9ydCAqIGZyb20gXCIuL01hdDMuanNcIjtcclxuZXhwb3J0ICogZnJvbSBcIi4vTWF0NC5qc1wiO1xyXG5leHBvcnQgKiBmcm9tIFwiLi9WZWMyLmpzXCI7XHJcbmV4cG9ydCAqIGZyb20gXCIuL1ZlYzMuanNcIjtcclxuZXhwb3J0ICogZnJvbSBcIi4vQ2FtZXJhM0QuanNcIjsiXX0=
