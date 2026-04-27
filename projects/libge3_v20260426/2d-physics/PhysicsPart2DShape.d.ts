@@ -1,0 +1,1 @@
+export type PhysicsPart2DShape = "rect" | "circle";
