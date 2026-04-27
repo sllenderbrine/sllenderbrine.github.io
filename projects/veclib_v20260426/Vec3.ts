@@ -41,12 +41,12 @@ export default class Vec3 {
     length(): number { return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z); }
     pitch(): number { return Math.asin(this.y); }
     yaw(): number { return Math.atan2(-this.x, -this.z); }
-    isCloseC(x: number, y: number, z: number, e = 1e-6) {
+    isCloseParts(x: number, y: number, z: number, e = 1e-6) {
         return Math.abs(this.x - x) < e && Math.abs(this.y - y) < e && Math.abs(this.z - z) < e;
     }
-    isClose(other: Vec3, e = 1e-6) { return this.isCloseC(other.x, other.y, other.z, e); }
+    isClose(other: Vec3, e = 1e-6) { return this.isCloseParts(other.x, other.y, other.z, e); }
     isZero(e = 1e-6) {
-        return Math.abs(this.x) < e && Math.abs(this.y) < e && Math.abs(this.z) < e
+        return Math.abs(this.x) < e && Math.abs(this.y) < e && Math.abs(this.z) < e;
     }
     isNaN() {
         return Number.isNaN(this.x) || Number.isNaN(this.y) || Number.isNaN(this.z);
