@@ -92,6 +92,12 @@ export default class Vec3 {
     }
 
     // No-Allocation Operations
+    copyFrom(other: Vec3): Vec3 {
+        this.x = other.x;
+        this.y = other.y;
+        this.z = other.z;
+        return this;
+    }
     addPut(other: Vec3, out: Vec3): Vec3 {
         out.x = this.x + other.x;
         out.y = this.y + other.y;
@@ -104,12 +110,6 @@ export default class Vec3 {
         out.z = this.z - other.z;
         return out;
     }
-    rsubPut(other: Vec3, out: Vec3): Vec3 {
-        out.x = other.x - this.x;
-        out.y = other.y - this.y;
-        out.z = other.z - this.z;
-        return out;
-    }
     mulPut(other: Vec3, out: Vec3): Vec3 {
         out.x = this.x * other.x;
         out.y = this.y * other.y;
@@ -120,12 +120,6 @@ export default class Vec3 {
         out.x = this.x / other.x;
         out.y = this.y / other.y;
         out.z = this.z / other.z;
-        return out;
-    }
-    rdivPut(other: Vec3, out: Vec3): Vec3 {
-        out.x = other.x / this.x;
-        out.y = other.y / this.y;
-        out.z = other.z / this.z;
         return out;
     }
     crossPut(other: Vec3, out: Vec3): Vec3 {
@@ -169,6 +163,112 @@ export default class Vec3 {
         out.z *= length;
         return out;
     }
+    lookPut(other: Vec3, out: Vec3): Vec3 {
+        return other.subPut(this, out).normPut(out);
+    }
+    flatPut(out: Vec3): Vec3 {
+        out.x = this.x;
+        out.y = 0;
+        out.z = this.z;
+        return out;
+    }
+    mapPut(callback: (v: number, i: number) => number, out: Vec3): Vec3 {
+        out.x = callback(this.x, 0);
+        out.y = callback(this.y, 1);
+        out.z = callback(this.z, 2);
+        return out;
+    }
+    redotPut(other: Vec3, targetDot: number, out: Vec3): Vec3 {
+        const d = other.lengthSq();
+        if(d === 0) return out.copyFrom(this);
+        const t = (targetDot - this.dot(other)) / d;
+        out.x = this.x + other.x * t;
+        out.y = this.y + other.y * t;
+        out.z = this.z + other.z * t;
+        return out;
+    }
+    clampLengthPut(min: number, max: number, out: Vec3) {
+        const len = Math.min(Math.max(this.length(), min), max);
+        return this.rescalePut(len, out);
+    }
+    transformPut(m: Float32Array | number[], out: Vec3): Vec3 {
+        const x = this.x;
+        const y = this.y;
+        const z = this.z;
+        out.x = m[0]!*x + m[4]!*y + m[8]!*z + m[12]!;
+        out.y = m[1]!*x + m[5]!*y + m[9]!*z + m[13]!;
+        out.z = m[2]!*x + m[6]!*y + m[10]!*z + m[14]!;
+        return out;
+    }
+    applyProjectionPut(m: Float32Array | number[], out: Vec3): Vec3 {
+        const x = this.x;
+        const y = this.y;
+        const z = this.z;
+        const w = m[3]! * x + m[7]! * y + m[11]! * z + m[15]!;
+        out.x = (m[0]!*x + m[4]!*y + m[8]!*z + m[12]!) / w;
+        out.y = (m[1]!*x + m[5]!*y + m[9]!*z + m[13]!) / w;
+        out.z = (m[2]!*x + m[6]!*y + m[10]!*z + m[14]!) / w;
+        return out;
+    }
+    rotateXPut(a: number, out: Vec3): Vec3 {
+        const s = Math.sin(a);
+        const c = Math.cos(a);
+        const y = this.y * c - this.z * s;
+        out.z = this.y * s + this.z * c;
+        out.y = y;
+        out.x = this.x;
+        return out;
+    }
+    rotateYPut(a: number, out: Vec3): Vec3 {
+        const s = Math.sin(a);
+        const c = Math.cos(a);
+        const z = this.z * c - this.x * s;
+        out.x = this.x * c + this.z * s;
+        out.z = z;
+        out.y = this.y;
+        return out;
+    }
+    rotateZPut(a: number, out: Vec3): Vec3 {
+        const s = Math.sin(a);
+        const c = Math.cos(a);
+        const x = this.x * c - this.y * s;
+        out.y = this.x * s + this.y * c;
+        out.x = x;
+        out.z = this.z;
+        return out;
+    }
+    rotateAxisPut(a: number, axisUnit: Vec3, out: Vec3): Vec3 {
+        const s = Math.sin(a);
+        const c = Math.cos(a);
+        const crossX = this.y * axisUnit.z - this.z * axisUnit.y;
+        const crossY = this.z * axisUnit.x - this.x * axisUnit.z;
+        const crossZ = this.x * axisUnit.y - this.y * axisUnit.x;
+        const dot = axisUnit.dot(this);
+        out.x = this.x * c + crossX * s + axisUnit.x * dot * (1 - c);
+        out.y = this.y * c + crossY * s + axisUnit.y * dot * (1 - c);
+        out.z = this.z * c + crossZ * s + axisUnit.z * dot * (1 - c);
+        return out;
+    }
+    rotateXyzPut(rotation: Vec3, out: Vec3) {
+        return this.rotateXPut(rotation.x, out)
+            .rotateYPut(rotation.y, out)
+            .rotateZPut(rotation.z, out);
+    }
+    rotateXyzPartsPut(rx: number, ry: number, rz: number, out: Vec3): Vec3 {
+        return this.rotateXPut(rx, out)
+            .rotateYPut(ry, out)
+            .rotateZPut(rz, out);
+    }
+    rotateZyxPut(rotation: Vec3, out: Vec3) {
+        return this.rotateZPut(rotation.z, out)
+            .rotateYPut(rotation.y, out)
+            .rotateXPut(rotation.x, out);
+    }
+    rotateZyxPartsPut(rx: number, ry: number, rz: number, out: Vec3): Vec3 {
+        return this.rotateZPut(rz, out)
+            .rotateYPut(ry, out)
+            .rotateXPut(rx, out);
+    }
 
     addScalarPut(f: number, out: Vec3): Vec3 {
         out.x = this.x + f;
@@ -211,15 +311,28 @@ export default class Vec3 {
     clone(): Vec3 { return new Vec3(this.x, this.y, this.z); }
     add(other: Vec3): Vec3 { return this.addPut(other, Vec3.zero()); }
     sub(other: Vec3): Vec3 { return this.subPut(other, Vec3.zero()); }
-    rsub(other: Vec3): Vec3 { return this.rsubPut(other, Vec3.zero()); }
     mul(other: Vec3): Vec3 { return this.mulPut(other, Vec3.zero()); }
     div(other: Vec3): Vec3 { return this.divPut(other, Vec3.zero()); }
-    rdiv(other: Vec3): Vec3 { return this.rdivPut(other, Vec3.zero()); }
     cross(other: Vec3): Vec3 { return this.crossPut(other, Vec3.zero()); }
     norm(): Vec3 { return this.normPut(Vec3.zero()); }
     invert(): Vec3 { return this.invertPut(Vec3.zero()); }
     lerp(other: Vec3, t: number): Vec3 { return this.lerpPut(other, t, Vec3.zero()); }
     rescale(length: number): Vec3 { return this.rescalePut(length, Vec3.zero()); }
+    look(other: Vec3): Vec3 { return this.lookPut(other, Vec3.zero()); }
+    flat(): Vec3 { return this.flatPut(Vec3.zero()); }
+    map(callback: (v: number, i: number) => number): Vec3 { return this.mapPut(callback, Vec3.zero()); }
+    redot(other: Vec3, targetDot: number): Vec3 { return this.redotPut(other, targetDot, Vec3.zero()); }
+    clampLength(min: number, max: number): Vec3 { return this.clampLengthPut(min, max, Vec3.zero()); }
+    transform(m: number[]): Vec3 { return this.transformPut(m, Vec3.zero()); }
+    applyProjection(m: number[]): Vec3 { return this.applyProjectionPut(m, Vec3.zero()); }
+    rotateX(a: number): Vec3 { return this.rotateXPut(a, Vec3.zero()); }
+    rotateY(a: number): Vec3 { return this.rotateYPut(a, Vec3.zero()); }
+    rotateZ(a: number): Vec3 { return this.rotateZPut(a, Vec3.zero()); }
+    rotateAxis(a: number, axisUnit: Vec3): Vec3 { return this.rotateAxisPut(a, axisUnit, Vec3.zero()); }
+    rotateXyz(rotation: Vec3): Vec3 { return this.rotateXyzPut(rotation, Vec3.zero()); }
+    rotateXyzParts(rx: number, ry: number, rz: number): Vec3 { return this.rotateXyzPartsPut(rx, ry, rz, Vec3.zero()); }
+    rotateZyx(rotation: Vec3): Vec3 { return this.rotateZyxPut(rotation, Vec3.zero()); }
+    rotateZyxParts(rx: number, ry: number, rz: number): Vec3 { return this.rotateZyxPartsPut(rx, ry, rz, Vec3.zero()); }
 
     addScalar(f: number): Vec3 { return this.addScalarPut(f, Vec3.zero()); }
     subScalar(f: number): Vec3 { return this.subScalarPut(f, Vec3.zero()); }
