@@ -1,6 +1,6 @@
-import Signal from "../eventsignals_v20260427/Signal.js";
+import { Signal } from "../eventsignals_v20260427/Signal.js";
 
-export default class Checkbox {
+export class Checkbox {
     containerEl: HTMLDivElement;
     svgEl: SVGElement;
     inputEvent: Signal<[value: boolean]> = new Signal({onConnect:(conn)=>{conn.fire(this._isChecked);}});

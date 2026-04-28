@@ -1,4 +1,4 @@
-import type DenseLayer from "./DenseLayer.js";
+import type { DenseLayer } from "./DenseLayer.js";
 
 export abstract class LayerOptimizer {
     abstract applyGradients(learnRate: number, batchSize: number, clearGradients: boolean): void;

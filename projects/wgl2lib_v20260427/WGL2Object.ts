@@ -1,8 +1,8 @@
-import WGL2ComponentVao from "./WGL2ComponentVao.js";
-import WGL2ComponentBuffer from "./WGL2ComponentBuffer.js";
-import type WGL2Shader from "./WGL2Shader.js";
+import { WGL2ComponentVao } from "./WGL2ComponentVao.js";
+import { WGL2ComponentBuffer } from "./WGL2ComponentBuffer.js";
+import type { WGL2Shader } from "./WGL2Shader.js";
 
-export default class WGL2Object {
+export class WGL2Object {
     gl: WebGL2RenderingContext;
     cVao: WGL2ComponentVao;
     cBufferByName: {[key:string]: WGL2ComponentBuffer} = {};

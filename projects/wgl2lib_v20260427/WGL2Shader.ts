@@ -1,14 +1,14 @@
-import WGL2Attribute from "./WGL2Attribute.js";
-import WGL2ComponentProgram from "./WGL2ComponentProgram.js";
-import WGL2ComponentShader from "./WGL2ComponentShader.js";
-import WGL2ComponentUniform from "./WGL2ComponentUniform.js";
-import WGL2Object from "./WGL2Object.js";
-import WGL2Texture2D from "./WGL2Texture2D.js";
-import WGL2Texture3D from "./WGL2Texture3D.js";
+import { WGL2Attribute } from "./WGL2Attribute.js";
+import { WGL2ComponentProgram } from "./WGL2ComponentProgram.js";
+import { WGL2ComponentShader } from "./WGL2ComponentShader.js";
+import { WGL2ComponentUniform } from "./WGL2ComponentUniform.js";
+import { WGL2Object } from "./WGL2Object.js";
+import { WGL2Texture2D } from "./WGL2Texture2D.js";
+import { WGL2Texture3D } from "./WGL2Texture3D.js";
 import type { WGL2AttributeType } from "./WGL2AttributeType.d.ts";
 import type { WGL2UniformType } from "./WGL2UniformType.js";
 
-export default class WGL2Shader {
+export class WGL2Shader {
     cProgram: WGL2ComponentProgram;
     attributes: WGL2Attribute[] = [];
     cUniforms: WGL2ComponentUniform[] = []

@@ -5,7 +5,7 @@ function clamp(v: number, min: number, max: number) {
     return Math.min(Math.max(v, min), max);
 }
 
-export default class Color {
+export class Color {
     constructor(r: number, g: number, b: number, a = 1) {
         this._r = r;
         this._g = g;

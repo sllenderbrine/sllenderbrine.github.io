@@ -1,4 +1,4 @@
-export default class Vec3 {
+export class Vec3 {
     constructor(public x: number, public y: number, public z: number) { }
 
     // Static Constructors
@@ -29,11 +29,23 @@ export default class Vec3 {
     toArray(): [number, number, number] {
         return [this.x, this.y, this.z];
     }
+    toArrayPut(arr: number[]): number[] {
+        arr[0] = this.x;
+        arr[1] = this.y;
+        arr[2] = this.z;
+        return arr;
+    }
     toString(): string {
         return `<${this.x}, ${this.y}, ${this.z}>`;
     }
     toObject(): {x: number, y: number, z: number} {
         return {x:this.x, y:this.y, z:this.z};
+    }
+    toObjectPut(obj: any): any {
+        obj.x = this.x;
+        obj.y = this.y;
+        obj.z = this.z;
+        return obj;
     }
 
     // Calculations
@@ -96,6 +108,12 @@ export default class Vec3 {
         this.x = other.x;
         this.y = other.y;
         this.z = other.z;
+        return this;
+    }
+    fromArray(arr: [number, number, number, ...number[]]): Vec3 {
+        this.x = arr[0];
+        this.y = arr[1];
+        this.z = arr[2];
         return this;
     }
     addPut(other: Vec3, out: Vec3): Vec3 {

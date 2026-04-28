@@ -1,4 +1,4 @@
-import type DenseLayer from "./DenseLayer.js";
+import type { DenseLayer } from "./DenseLayer.js";
 import type { LayerError } from "./LayerError.d.ts";
 
 export const MseError: LayerError = {

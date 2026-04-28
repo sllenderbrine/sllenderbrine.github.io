@@ -1,7 +1,7 @@
-import type WGL2ComponentProgram from "./WGL2ComponentProgram.js";
+import type { WGL2ComponentProgram } from "./WGL2ComponentProgram.js";
 import type { WGL2UniformType } from "./WGL2UniformType.js";
 
-export default class WGL2ComponentUniform {
+export class WGL2ComponentUniform {
     wLocation: WebGLUniformLocation;
     queuedValues: any[] | any | null = null;
     hasQueued = false;

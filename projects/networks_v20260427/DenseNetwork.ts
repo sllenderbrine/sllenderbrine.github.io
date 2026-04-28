@@ -1,11 +1,11 @@
-import DenseLayer from "./DenseLayer.js";
+import { DenseLayer } from "./DenseLayer.js";
 import { MseError } from "./NetworkErrors.js";
 import type { LayerOptimizer } from "./Optimizers.js";
 import type { LayerActivation } from "./LayerActivation.d.ts";
 import type { WeightRandomizer } from "./WeightRandomizer.d.ts";
 import type { LayerError } from "./LayerError.d.ts";
 
-export default class DenseNetwork {
+export class DenseNetwork {
     public layers: DenseLayer[] = [];
     input: Float32Array;
     batches = 0;

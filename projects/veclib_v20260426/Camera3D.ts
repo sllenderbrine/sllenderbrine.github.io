@@ -1,7 +1,7 @@
-import Mat4 from "./Mat4.js";
-import Vec3 from "./Vec3.js";
+import { Mat4 } from "./Mat4.js";
+import { Vec3 } from "./Vec3.js";
 
-export default class Camera3D {
+export class Camera3D {
     aspect = 1;
     verticalFov = 90*Math.PI/180;
     near = 0.1;
@@ -37,6 +37,18 @@ export default class Camera3D {
         if(this.viewValid)
             return false;
         Mat4.setView(this.viewMatrix, this.position.x, this.position.y, this.position.z, this.rotation.x, this.rotation.y, this.rotation.z);
+        // const rot = Mat4.multiply(
+        //     Mat4.rotationZ(-this.rotation.z),
+        //     Mat4.multiply(
+        //         Mat4.rotationX(-this.rotation.x),
+        //         Mat4.rotationY(-this.rotation.y),
+        //     ),
+        // );
+        // const rot = Mat4.euler(-this.rotation.x, -this.rotation.y, -this.rotation.z);
+        // this.viewMatrix = Mat4.multiply(
+        //     rot,
+        //     Mat4.translation(-this.position.x, -this.position.y, -this.position.z),
+        // );
         this.viewValid = true;
         return true;
     }

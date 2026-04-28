@@ -1,4 +1,4 @@
-import type DenseLayer from "./DenseLayer.js";
+import type { DenseLayer } from "./DenseLayer.js";
 import type { LayerActivation } from "./LayerActivation.d.ts";
 
 export const SigmoidActivation: LayerActivation = {

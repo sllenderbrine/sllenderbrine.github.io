@@ -1,6 +1,6 @@
-import type ConnectionGroup from "./ConnectionGroup.js";
+import type { ConnectionGroup } from "./ConnectionGroup.js";
 
-export default class HtmlConnection {
+export class HtmlConnection {
     groups: ConnectionGroup[] = [];
     constructor(public el: EventTarget, public name: string, public callback: (e: any) => void) {
         this.el.addEventListener(this.name, this.callback);

@@ -1,5 +1,5 @@
 // Column-major 4x4 matrix
-export default abstract class Mat4 {
+export abstract class Mat4 {
     constructor() {}
 
     // Identity
@@ -114,20 +114,19 @@ export default abstract class Mat4 {
         const sy = Math.sin(ay), cy = Math.cos(ay);
         const sz = Math.sin(az), cz = Math.cos(az);
         const sxsy = sx * sy;
-        const cxsy = cx * sy;
-        const cysx = cy * sx;
+        const sxcy = sx * cy;
 
-        out[0]  = cy * cz + sxsy * sz;
-        out[1]  = cx * sz;
-        out[2]  = cysx * sz - sy * cz;
+        out[0]  = cz*cy + -sz*sxsy;
+        out[1]  = sz*cy + cz*sxsy;
+        out[2]  = cx*-sy;
 
-        out[4]  = cy * -sz + sxsy * cz;
-        out[5]  = cx * cz;
-        out[6]  = -sy * -sz - cysx * cz;
+        out[4]  = -sz*cx;
+        out[5]  = cz*cx;
+        out[6]  = sx;
 
-        out[8]  = cxsy;
-        out[9]  = -sx;
-        out[10] = cx * cy;
+        out[8]  = cz*sy + sz*sxcy;
+        out[9]  = sz*sy + cz*-sxcy;
+        out[10] = cx*cy;
 
         return out;
     }
@@ -138,28 +137,27 @@ export default abstract class Mat4 {
         const sy = Math.sin(ay), cy = Math.cos(ay);
         const sz = Math.sin(az), cz = Math.cos(az);
         const sxsy = sx * sy;
-        const cxsy = cx * sy;
+        const sxcy = sx * cy;
 
-        const m00 = cy * cz + sxsy * sz;
-        const m01 = cx * sz;
-        const m02 = cy * sx * sz - sy * cz;
+        const m0  = cz*cy + -sz*sxsy;
+        const m1  = sz*cy + cz*sxsy;
+        const m2  = cx*-sy;
 
-        const m10 = -cy * sz + sxsy * cz;
-        const m11 = cx * cz;
-        const m12 = sy * sz + cy * sx * cz;
+        const m4  = -sz*cx;
+        const m5  = cz*cx;
+        const m6  = sx;
 
-        const m20 = cxsy;
-        const m21 = -sx;
-        const m22 = cx * cy;
+        const m8  = cz*sy + sz*sxcy;
+        const m9  = sz*sy + cz*-sxcy;
+        const m10 = cx*cy;
 
-        out[0] = m00; out[1] = m01; out[2] = m02; out[3] = 0;
-        out[4] = m10; out[5] = m11; out[6] = m12; out[7] = 0;
-        out[8] = m20; out[9] = m21; out[10] = m22; out[11] = 0;
+        out[0] = m0; out[1] = m1; out[2]  = m2;
+        out[4] = m4; out[5] = m5; out[6]  = m6;
+        out[8] = m8; out[9] = m9; out[10] = m10;
 
-        out[12] = -(m00 * px + m10 * py + m20 * pz);
-        out[13] = -(m01 * px + m11 * py + m21 * pz);
-        out[14] = -(m02 * px + m12 * py + m22 * pz);
-        out[15] = 1;
+        out[12] = -(m0*px + m4*py + m8*pz);
+        out[13] = -(m1*px + m5*py + m9*pz);
+        out[14] = -(m2*px + m6*py + m10*pz);
         
         return out;
     }

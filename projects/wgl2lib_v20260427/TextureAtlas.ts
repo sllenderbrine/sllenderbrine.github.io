@@ -1,6 +1,6 @@
 import type { TextureAtlasImage } from "./TextureAtlasImage.d.ts";
 
-export default class TextureAtlas {
+export class TextureAtlas {
     width: number;
     height: number;
     constructor(public image: HTMLImageElement, public bounds: {[name:string]: TextureAtlasImage}) {

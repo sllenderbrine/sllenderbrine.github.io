@@ -1,8 +1,8 @@
-import ConnectionGroup from "../eventsignals_v20260427/ConnectionGroup.js";
-import HtmlConnection from "../eventsignals_v20260427/HtmlConnection.js";
-import Signal from "../eventsignals_v20260427/Signal.js";
+import { ConnectionGroup } from "../eventsignals_v20260427/ConnectionGroup.js";
+import { HtmlConnection } from "../eventsignals_v20260427/HtmlConnection.js";
+import { Signal } from "../eventsignals_v20260427/Signal.js";
 
-export default class Slider {
+export class Slider {
     containerEl: HTMLDivElement;
     valueEl: HTMLDivElement;
     handleEl: HTMLButtonElement;

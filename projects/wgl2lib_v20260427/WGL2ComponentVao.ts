@@ -1,6 +1,6 @@
-import type WGL2ComponentBuffer from "./WGL2ComponentBuffer.js";
+import type { WGL2ComponentBuffer } from "./WGL2ComponentBuffer.js";
 
-export default class WGL2ComponentVao {
+export class WGL2ComponentVao {
     wVao: WebGLVertexArrayObject;
     constructor(public gl: WebGL2RenderingContext) {
         this.wVao = gl.createVertexArray();

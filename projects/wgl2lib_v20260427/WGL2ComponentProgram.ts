@@ -1,6 +1,6 @@
-import type WGL2ComponentShader from "./WGL2ComponentShader.js";
+import type { WGL2ComponentShader } from "./WGL2ComponentShader.js";
 
-export default class WGL2ComponentProgram {
+export class WGL2ComponentProgram {
     wProgram: WebGLProgram;
     constructor(public gl: WebGL2RenderingContext, public cShaderV: WGL2ComponentShader, public cShaderF: WGL2ComponentShader) {
         const wProgram = gl.createProgram();

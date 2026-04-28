@@ -1,4 +1,4 @@
-export default class Vec2 {
+export class Vec2 {
     constructor(public x: number, public y: number) { }
 
     // Static Constructors
@@ -22,11 +22,21 @@ export default class Vec2 {
     toArray(): [number, number] {
         return [this.x, this.y];
     }
+    toArrayPut(arr: number[]): number[] {
+        arr[0] = this.x;
+        arr[1] = this.y;
+        return arr;
+    }
     toString(): string {
         return `<${this.x}, ${this.y}>`;
     }
     toObject(): {x: number, y: number} {
         return {x:this.x, y:this.y};
+    }
+    toObjectPut(obj: any): any {
+        obj.x = this.x;
+        obj.y = this.y;
+        return obj;
     }
 
     // Calculations
@@ -76,6 +86,11 @@ export default class Vec2 {
     copyFrom(other: Vec2): Vec2 {
         this.x = other.x;
         this.y = other.y;
+        return this;
+    }
+    fromArray(arr: [number, number, ...number[]]): Vec2 {
+        this.x = arr[0];
+        this.y = arr[1];
         return this;
     }
     addPut(other: Vec2, out: Vec2): Vec2 {

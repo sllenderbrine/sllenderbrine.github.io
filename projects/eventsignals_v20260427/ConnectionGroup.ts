@@ -1,7 +1,7 @@
-import type Connection from "./Connection.js";
-import type HtmlConnection from "./HtmlConnection.js";
+import type { Connection } from "./Connection.js";
+import type { HtmlConnection } from "./HtmlConnection.js";
 
-export default class ConnectionGroup {
+export class ConnectionGroup {
     connections: (Connection<any> | HtmlConnection)[] = [];
     constructor() {
 

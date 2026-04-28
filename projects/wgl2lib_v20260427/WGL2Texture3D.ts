@@ -1,7 +1,7 @@
-import type WGL2ComponentUniform from "./WGL2ComponentUniform.js";
-import type WGL2Shader from "./WGL2Shader.js";
+import type { WGL2ComponentUniform } from "./WGL2ComponentUniform.js";
+import type { WGL2Shader } from "./WGL2Shader.js";
 
-export default class WGL2Texture3D {
+export class WGL2Texture3D {
     wTexture: WebGLTexture;
     uniform: WGL2ComponentUniform;
     constructor(public shader: WGL2Shader, public name: string, public slot: number) {

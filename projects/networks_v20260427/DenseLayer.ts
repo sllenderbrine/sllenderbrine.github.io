@@ -6,7 +6,7 @@ import type { LayerActivation } from "./LayerActivation.d.ts";
 import type { WeightRandomizer } from "./WeightRandomizer.d.ts";
 import type { LayerError } from "./LayerError.d.ts";
 
-export default class DenseLayer {
+export class DenseLayer {
     values_a: Float32Array;
     values_z: Float32Array;
     derr_dz: Float32Array;

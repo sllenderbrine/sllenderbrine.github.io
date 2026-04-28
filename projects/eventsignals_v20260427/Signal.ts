@@ -1,6 +1,6 @@
-import Connection from "./Connection.js";
+import { Connection } from "./Connection.js";
 
-export default class Signal<T extends any[]> {
+export class Signal<T extends any[]> {
     connections: Connection<T>[] = [];
     timeFired: number = -Number.MAX_VALUE;
     onConnect?: (conn: Connection<T>) => void;

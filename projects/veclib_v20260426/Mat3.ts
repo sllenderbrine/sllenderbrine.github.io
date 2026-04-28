@@ -1,5 +1,5 @@
 // Column-major 3x3 matrix
-export default abstract class Mat3 {
+export abstract class Mat3 {
     constructor() {}
 
     static identity(): Float32Array {

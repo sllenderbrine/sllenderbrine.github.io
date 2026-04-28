@@ -1,7 +1,7 @@
-import type ConnectionGroup from "./ConnectionGroup.js";
-import type Signal from "./Signal.js";
+import type { ConnectionGroup } from "./ConnectionGroup.js";
+import type { Signal } from "./Signal.js";
 
-export default class Connection<T extends any[]> {
+export class Connection<T extends any[]> {
     groups: ConnectionGroup[] = [];
     constructor(public signal: Signal<T>, public callback: (...args: T) => void) {
         

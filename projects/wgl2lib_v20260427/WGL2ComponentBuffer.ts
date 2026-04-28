@@ -1,6 +1,6 @@
 import type { WGL2AttributeType } from "./WGL2AttributeType.d.ts";
 
-export default class WGL2ComponentBuffer {
+export class WGL2ComponentBuffer {
     wType: GLenum;
     wDimensions: number;
     wBuffer: WebGLBuffer;
