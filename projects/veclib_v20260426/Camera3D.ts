@@ -19,7 +19,6 @@ export default class Camera3D {
 
     invalidateProjection() {
         this.projectionValid = false;
-        this.invalidateView();
     }
 
     invalidateView() {

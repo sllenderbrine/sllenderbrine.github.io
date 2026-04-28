@@ -1,0 +1,15 @@
+export default class ConnectionGroup {
+    connections = [];
+    constructor() {
+    }
+    add(conn) {
+        this.connections.push(conn);
+    }
+    disconnectAll() {
+        for (const conn of [...this.connections]) {
+            conn.disconnect();
+        }
+        this.connections = [];
+    }
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiQ29ubmVjdGlvbkdyb3VwLmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsiQ29ubmVjdGlvbkdyb3VwLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUdBLE1BQU0sQ0FBQyxPQUFPLE9BQU8sZUFBZTtJQUNoQyxXQUFXLEdBQXlDLEVBQUUsQ0FBQztJQUN2RDtJQUVBLENBQUM7SUFDRCxHQUFHLENBQUMsSUFBc0M7UUFDdEMsSUFBSSxDQUFDLFdBQVcsQ0FBQyxJQUFJLENBQUMsSUFBSSxDQUFDLENBQUM7SUFDaEMsQ0FBQztJQUNELGFBQWE7UUFDVCxLQUFJLE1BQU0sSUFBSSxJQUFJLENBQUMsR0FBRyxJQUFJLENBQUMsV0FBVyxDQUFDLEVBQUUsQ0FBQztZQUN0QyxJQUFJLENBQUMsVUFBVSxFQUFFLENBQUM7UUFDdEIsQ0FBQztRQUNELElBQUksQ0FBQyxXQUFXLEdBQUcsRUFBRSxDQUFDO0lBQzFCLENBQUM7Q0FDSiIsInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB0eXBlIENvbm5lY3Rpb24gZnJvbSBcIi4vQ29ubmVjdGlvbi5qc1wiO1xyXG5pbXBvcnQgdHlwZSBIdG1sQ29ubmVjdGlvbiBmcm9tIFwiLi9IdG1sQ29ubmVjdGlvbi5qc1wiO1xyXG5cclxuZXhwb3J0IGRlZmF1bHQgY2xhc3MgQ29ubmVjdGlvbkdyb3VwIHtcclxuICAgIGNvbm5lY3Rpb25zOiAoQ29ubmVjdGlvbjxhbnk+IHwgSHRtbENvbm5lY3Rpb24pW10gPSBbXTtcclxuICAgIGNvbnN0cnVjdG9yKCkge1xyXG5cclxuICAgIH1cclxuICAgIGFkZChjb25uOiBDb25uZWN0aW9uPGFueT4gfCBIdG1sQ29ubmVjdGlvbikge1xyXG4gICAgICAgIHRoaXMuY29ubmVjdGlvbnMucHVzaChjb25uKTtcclxuICAgIH1cclxuICAgIGRpc2Nvbm5lY3RBbGwoKSB7XHJcbiAgICAgICAgZm9yKGNvbnN0IGNvbm4gb2YgWy4uLnRoaXMuY29ubmVjdGlvbnNdKSB7XHJcbiAgICAgICAgICAgIGNvbm4uZGlzY29ubmVjdCgpO1xyXG4gICAgICAgIH1cclxuICAgICAgICB0aGlzLmNvbm5lY3Rpb25zID0gW107XHJcbiAgICB9XHJcbn0iXX0=
