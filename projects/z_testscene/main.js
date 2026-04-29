@@ -317,6 +317,7 @@ testSizeSlider.inputObserver.connect(value => {
         for(const obj of testObjs) {
             obj.rotation.y += dt * (1 + obj.x * 0.1);
             obj.rotation.x += dt * (1 + obj.z * 0.1);
+            obj.position.y = Math.sin(obj.z * 0.5 + performance.now()*0.001) * Math.cos(obj.x * 0.5 + performance.now()*0.001) * 5;
             obj.invalidateMatrix();
         }
     });
