@@ -1,4 +1,4 @@
-import { Camera3D, Keypresses, Mat4, Mat3, Mesh, RenderLoop, Vec3, WGL2Shader, Color, WindowResizeObserver } from "../ge3lib_v20260428/index.js";
+import { Camera3D, Keypresses, Mat4, Mat3, Mesh, RenderLoop, Vec3, WGL2Shader, Color, WindowResizeObserver, Slider } from "../ge3lib_v20260428/index.js";
 
 const canvas = document.createElement("canvas");
 document.body.appendChild(canvas);
@@ -32,6 +32,27 @@ fpsLabel.style = `
     left: 10px;
 `;
 hudDiv.appendChild(fpsLabel);
+
+const testSizeSlider = new Slider(5, 50, 5, 1);
+hudDiv.appendChild(testSizeSlider.containerEl);
+testSizeSlider.containerEl.style.position = "absolute";
+testSizeSlider.containerEl.style.left = "10px";
+testSizeSlider.containerEl.style.top = "40px";
+
+const testSizeLabel = document.createElement("div");
+testSizeLabel.style = `
+    color: white;
+    font-family: Arial;
+    font-size: 18px;
+    position: absolute;
+    top: 44px;
+    left: 130px;
+`;
+hudDiv.appendChild(testSizeLabel);
+
+testSizeSlider.inputObserver.connect(value => {
+    testSizeLabel.textContent = `${value*2+1} x ${value*2+1}`;
+});
 
 let resizeObserver = new WindowResizeObserver()
 resizeObserver.resizeEvent.connect((w, h) => {
@@ -263,20 +284,40 @@ let renderLoop = new RenderLoop(dt => {
     renderScene(camera);
 }).start();
 
-for(let x=-5; x<=5; x++) {
-    for(let z=-5; z<=5; z++) {
-        const obj1 = new PlatformPart();
-        obj1.position = new Vec3(x*4, 0, z*4);
-        obj1.size = new Vec3(1, 1, 1);
-        obj1.invalidateMatrix();
-        objects.push(obj1);
-        renderLoop.renderSteppedEvent.connect(dt => {
-            obj1.rotation.y += dt * (1 + x * 0.1);
-            obj1.rotation.x += dt * (1 + z * 0.1);
-            obj1.invalidateMatrix();
-        });
+
+let testFunc = null;
+let testObjs = [];
+testSizeSlider.inputObserver.connect(value => {
+    for(const obj of testObjs) {
+        obj.shaderObject.delete();
+        let i1 = objects.indexOf(obj);
+        if(i1 >= 0) objects.splice(i1, 1);
     }
-}
+    if(testFunc) {
+        testFunc.disconnect();
+        testFunc = null;
+    }
+    testObjs = [];
+    for(let x=-value; x<=value; x++) {
+        for(let z=-value; z<=value; z++) {
+            const obj = new PlatformPart();
+            obj.position = new Vec3(x*4, 0, z*4);
+            obj.size = new Vec3(1, 1, 1);
+            obj.invalidateMatrix();
+            objects.push(obj);
+            testObjs.push(obj);
+            obj.x = x;
+            obj.z = z;
+        }
+    }
+    testFunc = renderLoop.renderSteppedEvent.connect(dt => {
+        for(const obj of testObjs) {
+            obj.rotation.y += dt * (1 + obj.x * 0.1);
+            obj.rotation.x += dt * (1 + obj.z * 0.1);
+            obj.invalidateMatrix();
+        }
+    });
+});
 
 const obj2 = new PlatformPart();
 obj2.position.y -= 10;

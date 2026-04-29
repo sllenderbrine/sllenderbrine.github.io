@@ -7,7 +7,7 @@ export class Slider {
     valueEl: HTMLDivElement;
     handleEl: HTMLButtonElement;
     dragConnections = new ConnectionGroup();
-    inputEvent: Signal<[value: number]> = new Signal();
+    inputObserver: Signal<[value: number]> = new Signal({onConnect:(conn)=>{conn.fire(this._value);}});
     constructor(min=0, max=100, val=50, step?: number) {
         this._min = min;
         this._max = max;
@@ -40,7 +40,7 @@ export class Slider {
                     else
                         dt = -(e.clientY - y0) / (rect.height - this._handleSize);
                     this.setValue(v0 + dt * (this._max - this._min));
-                    this.inputEvent.fire(this._value);
+                    this.inputObserver.fire(this._value);
                 }
                 this.dragConnections.add(new HtmlConnection(window, "mousemove", e => {
                     update(e);
@@ -57,7 +57,7 @@ export class Slider {
                     else
                         t = (rect.bottom - e.clientY - this._handleSize / 2) / (rect.height - this._handleSize);
                     this.setValue(this._min + t * (this._max - this._min));
-                    this.inputEvent.fire(this._value);
+                    this.inputObserver.fire(this._value);
                 }
                 update(e);
                 this.dragConnections.add(new HtmlConnection(window, "mousemove", e => {
