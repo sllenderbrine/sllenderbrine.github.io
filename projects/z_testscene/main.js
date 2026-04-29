@@ -304,7 +304,6 @@ testSizeSlider.inputObserver.connect(value => {
             obj.position = new Vec3(x*4, 0, z*4);
             obj.size = new Vec3(1, 1, 1);
             obj.color = Color.fromHsv(x * 10, Math.sin(z / 5) * 50 + 50, 50);
-            console.log(obj.color.r, obj.color.g, obj.color.b);
             obj.updateColor();
             obj.invalidateMatrix();
             objects.push(obj);
