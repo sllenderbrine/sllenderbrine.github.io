@@ -1,0 +1,4 @@
+// Paint Utilities
+// https://github.com/sllenderbrine
+export * from "./Color.js";
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiaW5kZXguanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyJpbmRleC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQSxrQkFBa0I7QUFDbEIsbUNBQW1DO0FBRW5DLGNBQWMsWUFBWSxDQUFDIiwic291cmNlc0NvbnRlbnQiOlsiLy8gUGFpbnQgVXRpbGl0aWVzXHJcbi8vIGh0dHBzOi8vZ2l0aHViLmNvbS9zbGxlbmRlcmJyaW5lXHJcblxyXG5leHBvcnQgKiBmcm9tIFwiLi9Db2xvci5qc1wiOyJdfQ==

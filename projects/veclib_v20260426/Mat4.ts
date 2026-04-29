@@ -13,7 +13,7 @@ export abstract class Mat4 {
     }
 
     // Partial Constructors
-    static newTranslation(): Float32Array {
+    static partialTranslation(): Float32Array {
         const out = new Float32Array(16);
         out[0] = 1;
         out[5] = 1;
@@ -21,59 +21,59 @@ export abstract class Mat4 {
         out[15] = 1;
         return out;
     }
-    static newScale(): Float32Array {
+    static partialScale(): Float32Array {
         const out = new Float32Array(16);
         out[15] = 1;
         return out;
     }
-    static newPerspective(): Float32Array {
+    static partialPerspective(): Float32Array {
         const out = new Float32Array(16);
         out[11] = -1;
         return out;
     }
-    static newRotationX(): Float32Array {
+    static partialRotationX(): Float32Array {
         const out = new Float32Array(16);
         out[0] = 1;
         out[15] = 1;
         return out;
     }
-    static newRotationY(): Float32Array {
+    static partialRotationY(): Float32Array {
         const out = new Float32Array(16);
         out[5] = 1;
         out[15] = 1;
         return out;
     }
-    static newRotationZ(): Float32Array {
+    static partialRotationZ(): Float32Array {
         const out = new Float32Array(16);
         out[10] = 1;
         out[15] = 1;
         return out;
     }
-    static newEuler(): Float32Array {
+    static partialRotationYXZ(): Float32Array {
         const out = new Float32Array(16);
         out[15] = 1;
         return out;
     }
-    static newView(): Float32Array {
+    static partialCameraView(): Float32Array {
         const out = new Float32Array(16);
         out[15] = 1;
         return out;
     }
 
     // Partial Modifiers
-    static setTranslation(out: Float32Array, x: number, y: number, z: number): Float32Array {
+    static setTranslation(x: number, y: number, z: number, out: Float32Array): Float32Array {
         out[12] = x;
         out[13] = y;
         out[14] = z;
         return out;
     }
-    static setScale(out: Float32Array, x: number, y: number, z: number): Float32Array {
+    static setScale(x: number, y: number, z: number, out: Float32Array): Float32Array {
         out[0] = x;
         out[5] = y;
         out[10] = z;
         return out;
     }
-    static setPerspective(out: Float32Array, fovY: number, aspect: number, near: number, far: number): Float32Array {
+    static setPerspective(fovY: number, aspect: number, near: number, far: number, out: Float32Array): Float32Array {
         const f = 1 / Math.tan(fovY / 2);
         const nf = 1 / (near - far);
         out[0] = f/aspect;
@@ -82,7 +82,7 @@ export abstract class Mat4 {
         out[14] = (2 * far * near) * nf;
         return out;
     }
-    static setRotationX(out: Float32Array, a: number): Float32Array {
+    static setRotationX(a: number, out: Float32Array): Float32Array {
         const c = Math.cos(a);
         const s = Math.sin(a);
         out[5] = c;
@@ -91,7 +91,7 @@ export abstract class Mat4 {
         out[10] = c;
         return out;
     }
-    static setRotationY(out: Float32Array, a: number): Float32Array {
+    static setRotationY(a: number, out: Float32Array): Float32Array {
         const c = Math.cos(a);
         const s = Math.sin(a);
         out[0] = c;
@@ -100,7 +100,7 @@ export abstract class Mat4 {
         out[10] = c;
         return out;
     }
-    static setRotationZ(out: Float32Array, a: number): Float32Array {
+    static setRotationZ(a: number, out: Float32Array): Float32Array {
         const c = Math.cos(a);
         const s = Math.sin(a);
         out[0] = c;
@@ -109,7 +109,7 @@ export abstract class Mat4 {
         out[5] = c;
         return out;
     }
-    static setEuler(out: Float32Array, ax: number, ay: number, az: number): Float32Array {
+    static setRotationYXZ(ax: number, ay: number, az: number, out: Float32Array): Float32Array {
         const sx = Math.sin(ax), cx = Math.cos(ax);
         const sy = Math.sin(ay), cy = Math.cos(ay);
         const sz = Math.sin(az), cz = Math.cos(az);
@@ -130,7 +130,9 @@ export abstract class Mat4 {
 
         return out;
     }
-    static setView(out: Float32Array, px: number, py: number, pz: number, ax: number, ay: number, az: number): Float32Array {
+    static setCameraView(px: number, py: number, pz: number, ax: number, ay: number, az: number, out: Float32Array): Float32Array {
+        // (rz * (rx * ry)) * translation
+        // and flips signs of position and angles
         ax = -ax; ay = -ay; az = -az;
 
         const sx = Math.sin(ax), cx = Math.cos(ax);
@@ -164,28 +166,28 @@ export abstract class Mat4 {
 
     // Full Constructors
     static translation(x: number, y: number, z: number): Float32Array {
-        return this.setTranslation(this.newTranslation(), x, y, z);
+        return this.setTranslation(x, y, z, this.partialTranslation());
     }
     static scale(x: number, y: number, z: number): Float32Array {
-        return this.setScale(this.newScale(), x, y, z);
+        return this.setScale(x, y, z, this.partialScale());
     }
     static perspective(fovY: number, aspect: number, near: number, far: number): Float32Array {
-        return this.setPerspective(this.newPerspective(), fovY, aspect, near, far);
+        return this.setPerspective(fovY, aspect, near, far, this.partialPerspective());
     }
     static rotationX(a: number): Float32Array {
-        return this.setRotationX(this.newRotationX(), a);
+        return this.setRotationX(a, this.partialRotationX());
     }
     static rotationY(a: number): Float32Array {
-        return this.setRotationY(this.newRotationY(), a);
+        return this.setRotationY(a, this.partialRotationY());
     }
     static rotationZ(a: number): Float32Array {
-        return this.setRotationZ(this.newRotationZ(), a);
+        return this.setRotationZ(a, this.partialRotationZ());
     }
-    static euler(ax: number, ay: number, az: number): Float32Array {
-        return this.setEuler(this.newEuler(), ax, ay, az);
+    static rotationYXZ(ax: number, ay: number, az: number): Float32Array {
+        return this.setRotationYXZ(ax, ay, az, this.partialRotationYXZ());
     }
-    static view(px: number, py: number, pz: number, ax: number, ay: number, az: number): Float32Array {
-        return this.setView(this.newView(), px, py, pz, ax, ay, az);
+    static cameraView(px: number, py: number, pz: number, ax: number, ay: number, az: number): Float32Array {
+        return this.setCameraView(px, py, pz, ax, ay, az, this.partialCameraView());
     }
 
     // Full Modifiers
@@ -196,65 +198,65 @@ export abstract class Mat4 {
         out[12]=0;out[13]=0;out[14]=0;out[15]=1;
         return out;
     }
-    static fromTranslation(out: Float32Array, x: number, y: number, z: number): Float32Array {
+    static fromTranslation(x: number, y: number, z: number, out: Float32Array): Float32Array {
         out[0]=1; out[1]=0; out[2]=0; out[3]=0;
         out[4]=0; out[5]=1; out[6]=0; out[7]=0;
         out[8]=0; out[9]=0; out[10]=1;out[11]=0;
         /*out[12]=0;out[13]=0;out[14]=0;*/out[15]=1;
-        return this.setTranslation(out, x, y, z);
+        return this.setTranslation(x, y, z, out);
     }
-    static fromScale(out: Float32Array, x: number, y: number, z: number): Float32Array {
+    static fromScale(x: number, y: number, z: number, out: Float32Array): Float32Array {
         /*out[0]=0;*/ out[1]=0; out[2]=0; out[3]=0;
         out[4]=0; /*out[5]=0;*/ out[6]=0; out[7]=0;
         out[8]=0; out[9]=0; /*out[10]=0;*/out[11]=0;
         out[12]=0;out[13]=0;out[14]=0;out[15]=1;
-        return this.setScale(out, x, y, z);
+        return this.setScale(x, y, z, out);
     }
-    static fromPerspective(out: Float32Array, fovY: number, aspect: number, near: number, far: number): Float32Array {
+    static fromPerspective(fovY: number, aspect: number, near: number, far: number, out: Float32Array): Float32Array {
         /*out[0]=0;*/ out[1]=0; out[2]=0; out[3]=0;
         out[4]=0; /*out[5]=0;*/ out[6]=0; out[7]=0;
         out[8]=0; out[9]=0; /*out[10]=0;*/out[11]=-1;
         out[12]=0;out[13]=0;/*out[14]=0;*/out[15]=0;
-        return this.setPerspective(out, fovY, aspect, near, far);
+        return this.setPerspective(fovY, aspect, near, far, out);
     }
-    static fromRotationX(out: Float32Array, a: number): Float32Array {
+    static fromRotationX(a: number, out: Float32Array): Float32Array {
         out[0]=1; out[1]=0; out[2]=0; out[3]=0;
         out[4]=0; /*out[5]=0; out[6]=0;*/ out[7]=0;
         out[8]=0; /*out[9]=0; out[10]=0;*/out[11]=0;
         out[12]=0;out[13]=0;out[14]=0;out[15]=1;
-        return this.setRotationX(out, a);
+        return this.setRotationX(a, out);
     }
-    static fromRotationY(out: Float32Array, a: number): Float32Array {
+    static fromRotationY(a: number, out: Float32Array): Float32Array {
         /*out[0]=0;*/ out[1]=0; /*out[2]=0;*/ out[3]=0;
         out[4]=0; out[5]=1; out[6]=0; out[7]=0;
         /*out[8]=0;*/ out[9]=0; /*out[10]=0;*/out[11]=0;
         out[12]=0;out[13]=0;out[14]=0;out[15]=1;
-        return this.setRotationY(out, a);
+        return this.setRotationY(a, out);
     }
-    static fromRotationZ(out: Float32Array, a: number): Float32Array {
+    static fromRotationZ(a: number, out: Float32Array): Float32Array {
         /*out[0]=0; out[1]=0;*/ out[2]=0; out[3]=0;
         /*out[4]=0; out[5]=0;*/ out[6]=0; out[7]=0;
         out[8]=0; out[9]=0; out[10]=1;out[11]=0;
         out[12]=0;out[13]=0;out[14]=0;out[15]=1;
-        return this.setRotationZ(out, a);
+        return this.setRotationZ(a, out);
     }
-    static fromEuler(out: Float32Array, ax: number, ay: number, az: number): Float32Array {
+    static fromRotationYXZ(ax: number, ay: number, az: number, out: Float32Array): Float32Array {
         /*out[0]=0; out[1]=0; out[2]=0;*/ out[3]=0;
         /*out[4]=0; out[5]=0; out[6]=0;*/ out[7]=0;
         /*out[8]=0; out[9]=0; out[10]=0;*/out[11]=0;
         out[12]=0;out[13]=0;out[14]=0;out[15]=1;
-        return this.setEuler(out, ax, ay, az);
+        return this.setRotationYXZ(ax, ay, az, out);
     }
-    static fromView(out: Float32Array, px: number, py: number, pz: number, ax: number, ay: number, az: number): Float32Array {
+    static fromCameraView(px: number, py: number, pz: number, ax: number, ay: number, az: number, out: Float32Array): Float32Array {
         /*out[0]=1; out[1]=0; out[2]=0;*/ out[3]=0;
         /*out[4]=0; out[5]=1; out[6]=0;*/ out[7]=0;
         /*out[8]=0; out[9]=0; out[10]=1;*/out[11]=0;
         /*out[12]=0;out[13]=0;out[14]=0;*/out[15]=1;
-        return this.setView(out, px, py, pz, ax, ay, az);
+        return this.setCameraView(px, py, pz, ax, ay, az, out);
     }
 
     // Operations
-    static multiplyInto(a: Float32Array | number[], b: Float32Array | number[], out: Float32Array): Float32Array {
+    static multiplyPut(a: Float32Array | number[], b: Float32Array | number[], out: Float32Array): Float32Array {
         const a0  = a[0]!,  a1  = a[1]!,  a2  = a[2]!,  a3  = a[3]!;
         const a4  = a[4]!,  a5  = a[5]!,  a6  = a[6]!,  a7  = a[7]!;
         const a8  = a[8]!,  a9  = a[9]!,  a10 = a[10]!, a11 = a[11]!;
@@ -288,6 +290,6 @@ export abstract class Mat4 {
         return out;
     }
     static multiply(m1: Float32Array | number[], m2: Float32Array | number[]): Float32Array {
-        return this.multiplyInto(m1, m2, new Float32Array(16));
+        return this.multiplyPut(m1, m2, new Float32Array(16));
     }
 }

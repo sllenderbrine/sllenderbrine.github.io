@@ -9,9 +9,9 @@ export class Camera3D {
     position = Vec3.zero();
     rotation = Vec3.zero();
     viewValid = false
-    viewMatrix = Mat4.newView();
+    viewMatrix = Mat4.partialCameraView();
     projectionValid = false;
-    projectionMatrix = Mat4.newPerspective();
+    projectionMatrix = Mat4.partialPerspective();
 
     constructor() {
 
@@ -28,7 +28,7 @@ export class Camera3D {
     calculateProjection() {
         if(this.projectionValid)
             return false;
-        Mat4.setPerspective(this.projectionMatrix, this.verticalFov, this.aspect, this.near, this.far);
+        Mat4.setPerspective(this.verticalFov, this.aspect, this.near, this.far, this.projectionMatrix);
         this.projectionValid = true;
         return true;
     }
@@ -36,19 +36,7 @@ export class Camera3D {
     calculateView() {
         if(this.viewValid)
             return false;
-        Mat4.setView(this.viewMatrix, this.position.x, this.position.y, this.position.z, this.rotation.x, this.rotation.y, this.rotation.z);
-        // const rot = Mat4.multiply(
-        //     Mat4.rotationZ(-this.rotation.z),
-        //     Mat4.multiply(
-        //         Mat4.rotationX(-this.rotation.x),
-        //         Mat4.rotationY(-this.rotation.y),
-        //     ),
-        // );
-        // const rot = Mat4.euler(-this.rotation.x, -this.rotation.y, -this.rotation.z);
-        // this.viewMatrix = Mat4.multiply(
-        //     rot,
-        //     Mat4.translation(-this.position.x, -this.position.y, -this.position.z),
-        // );
+        Mat4.setCameraView(this.position.x, this.position.y, this.position.z, this.rotation.x, this.rotation.y, this.rotation.z, this.viewMatrix);
         this.viewValid = true;
         return true;
     }
