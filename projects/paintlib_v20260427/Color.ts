@@ -16,22 +16,34 @@ export class Color {
 
     rgbValid = false;
     _r: number = 0;
-    get r() { return this._r; }
+    get r() {
+        if(!this.rgbValid) this.calculateRgb();
+        return this._r;
+    }
     set r(v: number) {
         if(!this.rgbValid) this.calculateRgb();
         this._r = clamp(Math.floor(v), 0, 255);
+        this.hsvValid = false;
     }
     _g: number = 0;
-    get g() { return this._g; }
+    get g() {
+        if(!this.rgbValid) this.calculateRgb();
+        return this._g;
+    }
     set g(v: number) {
         if(!this.rgbValid) this.calculateRgb();
         this._g = clamp(Math.floor(v), 0, 255);
+        this.hsvValid = false;
     }
     _b: number = 0;
-    get b() { return this._b; }
+    get b() {
+        if(!this.rgbValid) this.calculateRgb();
+        return this._b;
+    }
     set b(v: number) {
         if(!this.rgbValid) this.calculateRgb();
         this._b = clamp(Math.floor(v), 0, 255);
+        this.hsvValid = false;
     }
 
     calculateRgb() {
@@ -60,22 +72,34 @@ export class Color {
 
     hsvValid = false;
     _h: number = 0;
-    get h() { return this._h; }
+    get h() {
+        if(!this.hsvValid) this.calculateHsv();
+        return this._h;
+    }
     set h(v: number) {
         if(!this.hsvValid) this.calculateHsv();
         this._h = pmod(Math.floor(v), 360);
+        this.rgbValid = false;
     }
     _s: number = 0;
-    get s() { return this._s; }
+    get s() {
+        if(!this.hsvValid) this.calculateHsv();
+        return this._s;
+    }
     set s(v: number) {
         if(!this.hsvValid) this.calculateHsv();
         this._s = clamp(Math.floor(v), 0, 100);
+        this.rgbValid = false;
     }
     _v: number = 0;
-    get v() { return this._v; }
+    get v() {
+        if(!this.hsvValid) this.calculateHsv();
+        return this._v;
+    }
     set v(v: number) {
         if(!this.hsvValid) this.calculateHsv();
         this._v = clamp(Math.floor(v), 0, 100);
+        this.rgbValid = false;
     }
 
     _a: number = 0;
