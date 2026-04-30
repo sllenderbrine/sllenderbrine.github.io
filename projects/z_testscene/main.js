@@ -1,4 +1,4 @@
-import { Camera3D, Keypresses, Mat4, Mat3, Mesh, RenderLoop, Vec3, WGL2Shader, Color, WindowResizeObserver, Slider } from "../ge3lib_v20260428/index.js";
+import { Camera3D, Keypresses, Mat4, Mat3, Mesh, RenderLoop, Vec3, WGL2Shader, Color, WindowResizeObserver, Slider, SimpleScene, FpsCounter } from "../ge3lib_v20260428/index.js";
 
 const canvas = document.createElement("canvas");
 document.body.appendChild(canvas);
@@ -75,43 +75,7 @@ resizeObserver.resizeEvent.connect((w, h) => {
     }
 });
 
-const shader = new WGL2Shader(
-    gl,
-    `#version 300 es
-        in vec3 a_position;
-        in vec3 a_normal;
-        uniform mat4 u_perspective;
-        uniform mat4 u_view;
-        uniform mat4 u_model;
-        uniform mat3 u_model_normal;
-        uniform vec3 u_sun_direction;
-        out float v_lighting;
-        void main() {
-            gl_Position = u_perspective * u_view * u_model * vec4(a_position, 1);
-            vec3 normal = normalize(u_model_normal * a_normal);
-            v_lighting = dot(normal, u_sun_direction) * 0.5 + 0.5;
-        }
-    `, `#version 300 es
-        precision highp float;
-        in float v_lighting;
-        uniform vec3 u_color;
-        out vec4 outColor;
-        void main() {
-            outColor = vec4(u_color * v_lighting, 1);
-        }
-    `
-);
-const uPerspective = shader.createUniform("u_perspective", "mat4");
-const uView = shader.createUniform("u_view", "mat4");
-const uModel = shader.createUniform("u_model", "mat4");
-const uModelNormal = shader.createUniform("u_model_normal", "mat3");
-const uSunDirection = shader.createUniform("u_sun_direction", "vec3");
-const uColor = shader.createUniform("u_color", "vec3");
-let sunDir = new Vec3(1,2,3);
-sunDir.normPut(sunDir);
-uSunDirection.setValues(sunDir.toArray());
-const aPosition = shader.addAttribute("a_position", "vec3");
-const aNormal = shader.addAttribute("a_normal", "vec3");
+const scene = new SimpleScene(gl);
 
 const camera = new Camera3D();
 camera.position = new Vec3(10, 4, 26);
@@ -120,120 +84,12 @@ camera.invalidateView();
 camera.aspect = canvas.width / canvas.height;
 camera.invalidateProjection();
 
-const planeFront = new Mesh();
-planeFront.positions.push(-1,-1,1, 1,-1,1, 1,1,1, -1,-1,1, 1,1,1, -1,1,1);
-planeFront.texcoords.push(0,0, 1,0, 1,1, 0,0, 0,1, 1,1);
-planeFront.normals.push(0,0,1, 0,0,1, 0,0,1, 0,0,1, 0,0,1, 0,0,1);
-const tmp0 = Vec3.zero();
-const planeLeft = planeFront.clone().transformSelf((position, texcoord, normal) => {
-    tmp0.fromArray(position).rotateYPut(Math.PI/2, tmp0).toArrayPut(position);
-    tmp0.fromArray(normal).rotateYPut(Math.PI/2, tmp0).toArrayPut(normal);
-});
-const planeBack = planeFront.clone().transformSelf((position, texcoord, normal) => {
-    tmp0.fromArray(position).rotateYPut(Math.PI, tmp0).toArrayPut(position);
-    tmp0.fromArray(normal).rotateYPut(Math.PI, tmp0).toArrayPut(normal);
-});
-const planeRight = planeFront.clone().transformSelf((position, texcoord, normal) => {
-    tmp0.fromArray(position).rotateYPut(3*Math.PI/2, tmp0).toArrayPut(position);
-    tmp0.fromArray(normal).rotateYPut(3*Math.PI/2, tmp0).toArrayPut(normal);
-});
-const planeBottom = planeFront.clone().transformSelf((position, texcoord, normal) => {
-    tmp0.fromArray(position).rotateXPut(Math.PI/2, tmp0).toArrayPut(position);
-    tmp0.fromArray(normal).rotateXPut(Math.PI/2, tmp0).toArrayPut(normal);
-});
-const planeTop = planeFront.clone().transformSelf((position, texcoord, normal) => {
-    tmp0.fromArray(position).rotateXPut(3*Math.PI/2, tmp0).toArrayPut(position);
-    tmp0.fromArray(normal).rotateXPut(3*Math.PI/2, tmp0).toArrayPut(normal);
-});
-const cube = new Mesh().concatSelf(
-    planeFront, planeLeft, planeBack, planeRight, planeBottom, planeTop
-);
-const cubePositions = new Float32Array(cube.positions);
-const cubeNormals = new Float32Array(cube.normals);
-
-class PlatformPart {
-    constructor() {
-        this.shaderObject = shader.createObject();
-        this.shaderObject.setData(aPosition.name, cubePositions);
-        this.shaderObject.setData(aNormal.name, cubeNormals);
-        this.position = Vec3.zero();
-        this.rotation = Vec3.zero();
-        this.size = Vec3.one();
-        this.scaleMatrix = Mat4.partialScale();
-        this.translationMatrix = Mat4.partialTranslation();
-        this.rotationMatrix = Mat4.partialRotationYXZ();
-        this.modelMatrix = Mat4.newIdentity();
-        this.normalMatrix = Mat3.newIdentity();
-        this.color = new Color(255, 0, 0);
-        this.colorUniform = [1, 0, 0];
-        this.matrixValid = false;
-    }
-    invalidateMatrix() {
-        this.matrixValid = false;
-    }
-    updateColor() {
-        this.colorUniform[0] = this.color.r / 255;
-        this.colorUniform[1] = this.color.g / 255;
-        this.colorUniform[2] = this.color.b / 255;
-    }
-    calculateMatrix() {
-        if(this.matrixValid)
-            return;
-        this.matrixValid = true;
-        Mat4.setScale(this.size.x, this.size.y, this.size.z, this.scaleMatrix);
-        Mat4.setTranslation(this.position.x, this.position.y, this.position.z, this.translationMatrix);
-        Mat4.setRotationYXZ(this.rotation.x, this.rotation.y, this.rotation.z, this.rotationMatrix);
-        Mat4.multiplyPut(
-            Mat4.multiplyPut(
-                this.translationMatrix,
-                this.rotationMatrix,
-                this.modelMatrix
-            ),
-            this.scaleMatrix,
-            this.modelMatrix
-        );
-        Mat3.mat4ToNormalPut(this.modelMatrix, this.normalMatrix);
-    }
-    render() {
-        this.calculateMatrix();
-        uModel.setValues(this.modelMatrix);
-        uModelNormal.setValues(this.normalMatrix);
-        uColor.setValues(this.colorUniform);
-        this.shaderObject.drawTriangles();
-    }
-}
-
-let objects = [];
-
-function renderScene(camera) {
-    camera.calculateProjection();
-    camera.calculateView();
-    uPerspective.setValues(camera.projectionMatrix);
-    uView.setValues(camera.viewMatrix);
-    for(let obj of objects) {
-        obj.render();
-    }
-}
-
-gl.enable(gl.DEPTH_TEST);
-gl.enable(gl.CULL_FACE);
-gl.clearColor(0.05, 0.07, 0.1, 1);
 let moveSpeed = 20;
 let turnSpeed = 4;
-let avgFps = 0;
-let avgFpsT = 0;
-let avgFpsI = 0;
+const fpsCounter = new FpsCounter();
+fpsCounter.fpsObserver.connect(fps=>{fpsLabel.textContent=`${Math.floor(fps)} FPS`;});
 let renderLoop = new RenderLoop(dt => {
-    avgFpsT += dt;
-    avgFps += 1/dt;
-    avgFpsI++;
-    if(avgFpsT > 0.1) {
-        let fps = avgFps / avgFpsI;
-        fpsLabel.textContent = `${Math.floor(fps)} FPS`;
-        avgFps = 0;
-        avgFpsT = 0;
-        avgFpsI = 0;
-    }
+    fpsCounter.update(dt);
     const fc = Math.cos(camera.rotation.y);
     const fs = Math.sin(camera.rotation.y);
     if(Keypresses.keyPressed["w"]) {
@@ -280,8 +136,7 @@ let renderLoop = new RenderLoop(dt => {
         camera.rotation.x -= dt * turnSpeed;
         camera.invalidateView();
     }
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    renderScene(camera);
+    scene.render(camera);
 }).start();
 
 
@@ -289,9 +144,7 @@ let testFunc = null;
 let testObjs = [];
 testSizeSlider.inputObserver.connect(value => {
     for(const obj of testObjs) {
-        obj.shaderObject.delete();
-        let i1 = objects.indexOf(obj);
-        if(i1 >= 0) objects.splice(i1, 1);
+        obj.remove();
     }
     if(testFunc) {
         testFunc.disconnect();
@@ -300,13 +153,12 @@ testSizeSlider.inputObserver.connect(value => {
     testObjs = [];
     for(let x=-value; x<=value; x++) {
         for(let z=-value; z<=value; z++) {
-            const obj = new PlatformPart();
+            const obj = scene.createPart();
             obj.position = new Vec3(x*4, 0, z*4);
             obj.size = new Vec3(1, 1, 1);
             obj.color = Color.fromHsv(x * 10, Math.sin(z / 5) * 50 + 50, 50);
             obj.updateColor();
             obj.invalidateMatrix();
-            objects.push(obj);
             testObjs.push(obj);
             obj.x = x;
             obj.z = z;
@@ -322,10 +174,9 @@ testSizeSlider.inputObserver.connect(value => {
     });
 });
 
-const obj2 = new PlatformPart();
+const obj2 = scene.createPart();
 obj2.position.y -= 10;
 obj2.size.mulPut(new Vec3(20, 1, 20), obj2.size);
 obj2.invalidateMatrix();
 obj2.color = new Color(87, 97, 96);
 obj2.updateColor();
-objects.push(obj2);

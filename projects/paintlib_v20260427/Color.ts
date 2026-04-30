@@ -135,6 +135,16 @@ export class Color {
     static zero() { return new Color(0, 0, 0, 0); }
     static white() { return new Color(255, 255, 255); }
     static black() { return new Color(0, 0, 0); }
+    static fromString(str: string) {
+        const parts = str.split("(")[1]!.split(")")[0]!.split(",");
+        const out = new Color(0, 0, 0);
+        out._r = parseInt(parts[0]!);
+        out._g = parseInt(parts[1]!);
+        out._b = parseInt(parts[2]!);
+        if(parts.length > 3)
+            out._a = parseFloat(parts[3]!);
+        return out;
+    }
     static fromHsv(h: number, s: number, v: number, a?: number) {
         const out = new Color(0, 0, 0, a);
         out.rgbValid = false;
