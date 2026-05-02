@@ -1,139 +1,100 @@
+import type { Vec3 } from "./Vec3.js";
+
 // Column-major 4x4 matrix
-export abstract class Mat4 {
-    constructor() {}
+export class Mat4 {
+    elements = new Float32Array(16);
+    constructor() { }
 
-    // Identity
-    static newIdentity(): Float32Array {
-        const out = new Float32Array(16);
-        out[0] = 1;
-        out[5] = 1;
-        out[10] = 1;
-        out[15] = 1;
-        return out;
+    set(
+        n11: number, n12: number, n13: number, n14: number,
+        n21: number, n22: number, n23: number, n24: number,
+        n31: number, n32: number, n33: number, n34: number,
+        n41: number, n42: number, n43: number, n44: number,
+    ): this {
+        const m = this.elements;
+        m[ 0] = n11; m[ 1] = n12; m[ 2] = n13; m[ 3] = n14;
+        m[ 4] = n21; m[ 5] = n22; m[ 6] = n23; m[ 7] = n24;
+        m[ 8] = n31; m[ 9] = n32; m[10] = n33; m[11] = n34;
+        m[12] = n41; m[13] = n42; m[14] = n43; m[15] = n44;
+        return this;
     }
-
-    // Partial Constructors
-    static partialTranslation(): Float32Array {
-        const out = new Float32Array(16);
-        out[0] = 1;
-        out[5] = 1;
-        out[10] = 1;
-        out[15] = 1;
-        return out;
-    }
-    static partialScale(): Float32Array {
-        const out = new Float32Array(16);
-        out[15] = 1;
-        return out;
-    }
-    static partialPerspective(): Float32Array {
-        const out = new Float32Array(16);
-        out[11] = -1;
-        return out;
-    }
-    static partialRotationX(): Float32Array {
-        const out = new Float32Array(16);
-        out[0] = 1;
-        out[15] = 1;
-        return out;
-    }
-    static partialRotationY(): Float32Array {
-        const out = new Float32Array(16);
-        out[5] = 1;
-        out[15] = 1;
-        return out;
-    }
-    static partialRotationZ(): Float32Array {
-        const out = new Float32Array(16);
-        out[10] = 1;
-        out[15] = 1;
-        return out;
-    }
-    static partialRotationYXZ(): Float32Array {
-        const out = new Float32Array(16);
-        out[15] = 1;
-        return out;
-    }
-    static partialCameraView(): Float32Array {
-        const out = new Float32Array(16);
-        out[15] = 1;
-        return out;
+    
+    fromIdentity(): this {
+        return this.set(
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1,
+        );
     }
 
-    // Partial Modifiers
-    static setTranslation(x: number, y: number, z: number, out: Float32Array): Float32Array {
-        out[12] = x;
-        out[13] = y;
-        out[14] = z;
-        return out;
+    fromTranslation(position: Vec3): this {
+        const {x, y, z} = position;
+        return this.set(
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            x, y, z, 1,
+        );
     }
-    static setScale(x: number, y: number, z: number, out: Float32Array): Float32Array {
-        out[0] = x;
-        out[5] = y;
-        out[10] = z;
-        return out;
+    
+    fromScale(scale: Vec3): this {
+        const {x, y, z} = scale;
+        return this.set(
+            x, 0, 0, 0,
+            0, y, 0, 0,
+            0, 0, z, 0,
+            0, 0, 0, 1,
+        );
     }
-    static setPerspective(fovY: number, aspect: number, near: number, far: number, out: Float32Array): Float32Array {
+
+    fromRotationYXZ(rotation: Vec3): this {
+        const sx = Math.sin(rotation.x), cx = Math.cos(rotation.x);
+        const sy = Math.sin(rotation.y), cy = Math.cos(rotation.y);
+        const sz = Math.sin(rotation.z), cz = Math.cos(rotation.z);
+        const sxsy = sx * sy;
+        const sxcy = sx * cy;
+
+        const n11 = cz*cy + -sz*sxsy;
+        const n12 = sz*cy + cz*sxsy;
+        const n13 = cx*-sy;
+        const n21 = -sz*cx;
+        const n22 = cz*cx;
+        const n23 = sx;
+        const n31 = cz*sy + sz*sxcy;
+        const n32 = sz*sy + cz*-sxcy;
+        const n33 = cx*cy;
+
+        return this.set(
+            n11, n12, n13, 0,
+            n21, n22, n23, 0,
+            n31, n32, n33, 0,
+            0,   0,   0,   1,
+        );
+    }
+
+    fromPerspective(fovY: number, aspect: number, near: number, far: number): this {
         const f = 1 / Math.tan(fovY / 2);
         const nf = 1 / (near - far);
-        out[0] = f/aspect;
-        out[5] = f;
-        out[10] = (far + near) * nf;
-        out[14] = (2 * far * near) * nf;
-        return out;
-    }
-    static setRotationX(a: number, out: Float32Array): Float32Array {
-        const c = Math.cos(a);
-        const s = Math.sin(a);
-        out[5] = c;
-        out[6] = s;
-        out[9] = -s;
-        out[10] = c;
-        return out;
-    }
-    static setRotationY(a: number, out: Float32Array): Float32Array {
-        const c = Math.cos(a);
-        const s = Math.sin(a);
-        out[0] = c;
-        out[2] = -s;
-        out[8] = s;
-        out[10] = c;
-        return out;
-    }
-    static setRotationZ(a: number, out: Float32Array): Float32Array {
-        const c = Math.cos(a);
-        const s = Math.sin(a);
-        out[0] = c;
-        out[1] = s;
-        out[4] = -s;
-        out[5] = c;
-        return out;
-    }
-    static setRotationYXZ(ax: number, ay: number, az: number, out: Float32Array): Float32Array {
-        const sx = Math.sin(ax), cx = Math.cos(ax);
-        const sy = Math.sin(ay), cy = Math.cos(ay);
-        const sz = Math.sin(az), cz = Math.cos(az);
-        const sxsy = sx * sy;
-        const sxcy = sx * cy;
+        
+        const n11 = f/aspect;
+        const n33 = (far + near) * nf;
+        const n43 = 2 * far * near * nf;
 
-        out[0]  = cz*cy + -sz*sxsy;
-        out[1]  = sz*cy + cz*sxsy;
-        out[2]  = cx*-sy;
-
-        out[4]  = -sz*cx;
-        out[5]  = cz*cx;
-        out[6]  = sx;
-
-        out[8]  = cz*sy + sz*sxcy;
-        out[9]  = sz*sy + cz*-sxcy;
-        out[10] = cx*cy;
-
-        return out;
+        return this.set(
+            n11, 0, 0,   0,
+            0,   f, 0,   0,
+            0,   0, n33, -1,
+            0,   0, n43, 0,
+        );
     }
-    static setCameraView(px: number, py: number, pz: number, ax: number, ay: number, az: number, out: Float32Array): Float32Array {
+
+    fromCameraView(position: Vec3, rotation: Vec3): this {
         // (rz * (rx * ry)) * translation
         // and flips signs of position and angles
-        ax = -ax; ay = -ay; az = -az;
+        const ax = -rotation.x;
+        const ay = -rotation.y;
+        const az = -rotation.z;
 
         const sx = Math.sin(ax), cx = Math.cos(ax);
         const sy = Math.sin(ay), cy = Math.cos(ay);
@@ -141,155 +102,64 @@ export abstract class Mat4 {
         const sxsy = sx * sy;
         const sxcy = sx * cy;
 
-        const m0  = cz*cy + -sz*sxsy;
-        const m1  = sz*cy + cz*sxsy;
-        const m2  = cx*-sy;
+        const n11  = cz*cy + -sz*sxsy;
+        const n12  = sz*cy + cz*sxsy;
+        const n13  = cx*-sy;
 
-        const m4  = -sz*cx;
-        const m5  = cz*cx;
-        const m6  = sx;
+        const n21  = -sz*cx;
+        const n22  = cz*cx;
+        const n23  = sx;
 
-        const m8  = cz*sy + sz*sxcy;
-        const m9  = sz*sy + cz*-sxcy;
-        const m10 = cx*cy;
+        const n31  = cz*sy + sz*sxcy;
+        const n32  = sz*sy + cz*-sxcy;
+        const n33 = cx*cy;
 
-        out[0] = m0; out[1] = m1; out[2]  = m2;
-        out[4] = m4; out[5] = m5; out[6]  = m6;
-        out[8] = m8; out[9] = m9; out[10] = m10;
+        const {x, y, z} = position;
+        const n41 = -(n11*x + n21*y + n31*z);
+        const n42 = -(n12*x + n22*y + n32*z);
+        const n43 = -(n13*x + n23*y + n33*z);
 
-        out[12] = -(m0*px + m4*py + m8*pz);
-        out[13] = -(m1*px + m5*py + m9*pz);
-        out[14] = -(m2*px + m6*py + m10*pz);
-        
-        return out;
-    }
-
-    // Full Constructors
-    static translation(x: number, y: number, z: number): Float32Array {
-        return this.setTranslation(x, y, z, this.partialTranslation());
-    }
-    static scale(x: number, y: number, z: number): Float32Array {
-        return this.setScale(x, y, z, this.partialScale());
-    }
-    static perspective(fovY: number, aspect: number, near: number, far: number): Float32Array {
-        return this.setPerspective(fovY, aspect, near, far, this.partialPerspective());
-    }
-    static rotationX(a: number): Float32Array {
-        return this.setRotationX(a, this.partialRotationX());
-    }
-    static rotationY(a: number): Float32Array {
-        return this.setRotationY(a, this.partialRotationY());
-    }
-    static rotationZ(a: number): Float32Array {
-        return this.setRotationZ(a, this.partialRotationZ());
-    }
-    static rotationYXZ(ax: number, ay: number, az: number): Float32Array {
-        return this.setRotationYXZ(ax, ay, az, this.partialRotationYXZ());
-    }
-    static cameraView(px: number, py: number, pz: number, ax: number, ay: number, az: number): Float32Array {
-        return this.setCameraView(px, py, pz, ax, ay, az, this.partialCameraView());
+        return this.set(
+            n11, n12, n13, 0,
+            n21, n22, n23, 0,
+            n31, n32, n33, 0,
+            n41, n42, n43, 1
+        );
     }
 
-    // Full Modifiers
-    static fromIdentity(out: Float32Array): Float32Array {
-        out[0]=1; out[1]=0; out[2]=0; out[3]=0;
-        out[4]=0; out[5]=1; out[6]=0; out[7]=0;
-        out[8]=0; out[9]=0; out[10]=1;out[11]=0;
-        out[12]=0;out[13]=0;out[14]=0;out[15]=1;
-        return out;
-    }
-    static fromTranslation(x: number, y: number, z: number, out: Float32Array): Float32Array {
-        out[0]=1; out[1]=0; out[2]=0; out[3]=0;
-        out[4]=0; out[5]=1; out[6]=0; out[7]=0;
-        out[8]=0; out[9]=0; out[10]=1;out[11]=0;
-        /*out[12]=0;out[13]=0;out[14]=0;*/out[15]=1;
-        return this.setTranslation(x, y, z, out);
-    }
-    static fromScale(x: number, y: number, z: number, out: Float32Array): Float32Array {
-        /*out[0]=0;*/ out[1]=0; out[2]=0; out[3]=0;
-        out[4]=0; /*out[5]=0;*/ out[6]=0; out[7]=0;
-        out[8]=0; out[9]=0; /*out[10]=0;*/out[11]=0;
-        out[12]=0;out[13]=0;out[14]=0;out[15]=1;
-        return this.setScale(x, y, z, out);
-    }
-    static fromPerspective(fovY: number, aspect: number, near: number, far: number, out: Float32Array): Float32Array {
-        /*out[0]=0;*/ out[1]=0; out[2]=0; out[3]=0;
-        out[4]=0; /*out[5]=0;*/ out[6]=0; out[7]=0;
-        out[8]=0; out[9]=0; /*out[10]=0;*/out[11]=-1;
-        out[12]=0;out[13]=0;/*out[14]=0;*/out[15]=0;
-        return this.setPerspective(fovY, aspect, near, far, out);
-    }
-    static fromRotationX(a: number, out: Float32Array): Float32Array {
-        out[0]=1; out[1]=0; out[2]=0; out[3]=0;
-        out[4]=0; /*out[5]=0; out[6]=0;*/ out[7]=0;
-        out[8]=0; /*out[9]=0; out[10]=0;*/out[11]=0;
-        out[12]=0;out[13]=0;out[14]=0;out[15]=1;
-        return this.setRotationX(a, out);
-    }
-    static fromRotationY(a: number, out: Float32Array): Float32Array {
-        /*out[0]=0;*/ out[1]=0; /*out[2]=0;*/ out[3]=0;
-        out[4]=0; out[5]=1; out[6]=0; out[7]=0;
-        /*out[8]=0;*/ out[9]=0; /*out[10]=0;*/out[11]=0;
-        out[12]=0;out[13]=0;out[14]=0;out[15]=1;
-        return this.setRotationY(a, out);
-    }
-    static fromRotationZ(a: number, out: Float32Array): Float32Array {
-        /*out[0]=0; out[1]=0;*/ out[2]=0; out[3]=0;
-        /*out[4]=0; out[5]=0;*/ out[6]=0; out[7]=0;
-        out[8]=0; out[9]=0; out[10]=1;out[11]=0;
-        out[12]=0;out[13]=0;out[14]=0;out[15]=1;
-        return this.setRotationZ(a, out);
-    }
-    static fromRotationYXZ(ax: number, ay: number, az: number, out: Float32Array): Float32Array {
-        /*out[0]=0; out[1]=0; out[2]=0;*/ out[3]=0;
-        /*out[4]=0; out[5]=0; out[6]=0;*/ out[7]=0;
-        /*out[8]=0; out[9]=0; out[10]=0;*/out[11]=0;
-        out[12]=0;out[13]=0;out[14]=0;out[15]=1;
-        return this.setRotationYXZ(ax, ay, az, out);
-    }
-    static fromCameraView(px: number, py: number, pz: number, ax: number, ay: number, az: number, out: Float32Array): Float32Array {
-        /*out[0]=1; out[1]=0; out[2]=0;*/ out[3]=0;
-        /*out[4]=0; out[5]=1; out[6]=0;*/ out[7]=0;
-        /*out[8]=0; out[9]=0; out[10]=1;*/out[11]=0;
-        /*out[12]=0;out[13]=0;out[14]=0;*/out[15]=1;
-        return this.setCameraView(px, py, pz, ax, ay, az, out);
-    }
+    fromMul(a: Mat4, b: Mat4): this {
+        const j = a.elements;
+        const k = b.elements;
+        const a0  = j[0]!,  a1  = j[1]!,  a2  = j[2]!,  a3  = j[3]!;
+        const a4  = j[4]!,  a5  = j[5]!,  a6  = j[6]!,  a7  = j[7]!;
+        const a8  = j[8]!,  a9  = j[9]!,  a10 = j[10]!, a11 = j[11]!;
+        const a12 = j[12]!, a13 = j[13]!, a14 = j[14]!, a15 = j[15]!;
 
-    // Operations
-    static multiplyPut(a: Float32Array | number[], b: Float32Array | number[], out: Float32Array): Float32Array {
-        const a0  = a[0]!,  a1  = a[1]!,  a2  = a[2]!,  a3  = a[3]!;
-        const a4  = a[4]!,  a5  = a[5]!,  a6  = a[6]!,  a7  = a[7]!;
-        const a8  = a[8]!,  a9  = a[9]!,  a10 = a[10]!, a11 = a[11]!;
-        const a12 = a[12]!, a13 = a[13]!, a14 = a[14]!, a15 = a[15]!;
+        const b0  = k[0]!,  b1  = k[1]!,  b2  = k[2]!,  b3  = k[3]!;
+        const b4  = k[4]!,  b5  = k[5]!,  b6  = k[6]!,  b7  = k[7]!;
+        const b8  = k[8]!,  b9  = k[9]!,  b10 = k[10]!, b11 = k[11]!;
+        const b12 = k[12]!, b13 = k[13]!, b14 = k[14]!, b15 = k[15]!;
 
-        const b0  = b[0]!,  b1  = b[1]!,  b2  = b[2]!,  b3  = b[3]!;
-        const b4  = b[4]!,  b5  = b[5]!,  b6  = b[6]!,  b7  = b[7]!;
-        const b8  = b[8]!,  b9  = b[9]!,  b10 = b[10]!, b11 = b[11]!;
-        const b12 = b[12]!, b13 = b[13]!, b14 = b[14]!, b15 = b[15]!;
+        return this.set(
+            a0*b0  + a4*b1  + a8*b2   + a12*b3,
+            a1*b0  + a5*b1  + a9*b2   + a13*b3,
+            a2*b0  + a6*b1  + a10*b2  + a14*b3,
+            a3*b0  + a7*b1  + a11*b2  + a15*b3,
 
-        out[0]  = a0*b0  + a4*b1  + a8*b2   + a12*b3;
-        out[1]  = a1*b0  + a5*b1  + a9*b2   + a13*b3;
-        out[2]  = a2*b0  + a6*b1  + a10*b2  + a14*b3;
-        out[3]  = a3*b0  + a7*b1  + a11*b2  + a15*b3;
+            a0*b4  + a4*b5  + a8*b6   + a12*b7,
+            a1*b4  + a5*b5  + a9*b6   + a13*b7,
+            a2*b4  + a6*b5  + a10*b6  + a14*b7,
+            a3*b4  + a7*b5  + a11*b6  + a15*b7,
 
-        out[4]  = a0*b4  + a4*b5  + a8*b6   + a12*b7;
-        out[5]  = a1*b4  + a5*b5  + a9*b6   + a13*b7;
-        out[6]  = a2*b4  + a6*b5  + a10*b6  + a14*b7;
-        out[7]  = a3*b4  + a7*b5  + a11*b6  + a15*b7;
+            a0*b8  + a4*b9  + a8*b10  + a12*b11,
+            a1*b8  + a5*b9  + a9*b10  + a13*b11,
+            a2*b8  + a6*b9  + a10*b10 + a14*b11,
+            a3*b8  + a7*b9  + a11*b10 + a15*b11,
 
-        out[8]  = a0*b8  + a4*b9  + a8*b10  + a12*b11;
-        out[9]  = a1*b8  + a5*b9  + a9*b10  + a13*b11;
-        out[10] = a2*b8  + a6*b9  + a10*b10 + a14*b11;
-        out[11] = a3*b8  + a7*b9  + a11*b10 + a15*b11;
-
-        out[12] = a0*b12 + a4*b13 + a8*b14  + a12*b15;
-        out[13] = a1*b12 + a5*b13 + a9*b14  + a13*b15;
-        out[14] = a2*b12 + a6*b13 + a10*b14 + a14*b15;
-        out[15] = a3*b12 + a7*b13 + a11*b14 + a15*b15;
-
-        return out;
-    }
-    static multiply(m1: Float32Array | number[], m2: Float32Array | number[]): Float32Array {
-        return this.multiplyPut(m1, m2, new Float32Array(16));
+            a0*b12 + a4*b13 + a8*b14  + a12*b15,
+            a1*b12 + a5*b13 + a9*b14  + a13*b15,
+            a2*b12 + a6*b13 + a10*b14 + a14*b15,
+            a3*b12 + a7*b13 + a11*b14 + a15*b15,
+        );
     }
 }

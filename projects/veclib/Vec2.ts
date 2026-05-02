@@ -19,13 +19,11 @@ export class Vec2 {
     }
 
     // Conversions
+    clone(): Vec2 {
+        return new Vec2(this.x, this.y);
+    }
     toArray(): [number, number] {
         return [this.x, this.y];
-    }
-    toArrayPut(arr: number[]): number[] {
-        arr[0] = this.x;
-        arr[1] = this.y;
-        return arr;
     }
     toString(): string {
         return `<${this.x}, ${this.y}>`;
@@ -33,20 +31,20 @@ export class Vec2 {
     toObject(): {x: number, y: number} {
         return {x:this.x, y:this.y};
     }
-    toObjectPut(obj: any): any {
-        obj.x = this.x;
-        obj.y = this.y;
-        return obj;
-    }
 
     // Calculations
-    lengthSq(): number { return this.x * this.x + this.y * this.y; }
-    length(): number { return Math.sqrt(this.x * this.x + this.y * this.y); }
-    roll(): number { return Math.atan2(this.y, this.x); }
-    isCloseParts(x: number, y: number, e = 1e-6) {
-        return Math.abs(this.x - x) < e && Math.abs(this.y - y) < e;
+    lengthSq(): number {
+        return this.x * this.x + this.y * this.y;
     }
-    isClose(other: Vec2, e = 1e-6) { return this.isCloseParts(other.x, other.y, e); }
+    length(): number {
+        return Math.sqrt(this.x * this.x + this.y);
+    }
+    roll(): number {
+        return Math.atan2(this.y, this.x);
+    }
+    isClose(other: Vec2, e = 1e-6) {
+        return Math.abs(this.x - other.x) < e && Math.abs(this.y - other.y) < e;
+    }
     isZero(e = 1e-6) {
         return Math.abs(this.x) < e && Math.abs(this.y) < e;
     }
@@ -56,188 +54,170 @@ export class Vec2 {
     isFinite() {
         return Number.isFinite(this.x) && Number.isFinite(this.y);
     }
-    distSqParts(x: number, y: number): number {
-        const dx = this.x - x;
-        const dy = this.y - y;
+    distSq(other: Vec2): number {
+        const dx = this.x - other.x;
+        const dy = this.y - other.y;
         return dx*dx + dy*dy;
     }
-    distSq(other: Vec2): number { return this.distSqParts(other.x, other.y); }
-    distParts(x: number, y: number): number {
-        const dx = this.x - x;
-        const dy = this.y - y;
+    dist(other: Vec2): number {
+        const dx = this.x - other.x;
+        const dy = this.y - other.y;
         return Math.sqrt(dx*dx + dy*dy);
     }
-    dist(other: Vec2): number { return this.distParts(other.x, other.y); }
-    dotParts(x: number, y: number): number {
-        return this.x * x + this.y * y;
+    dot(other: Vec2): number {
+        return this.x * other.x + this.y * other.y;
     }
-    dot(other: Vec2): number { return this.dotParts(other.x, other.y); }
-    angleParts(x: number, y: number): number {
-        const d = Math.sqrt(this.lengthSq() * (x*x + y*y));
+    angle(other: Vec2): number {
+        const d = Math.sqrt(this.lengthSq() * (other.x*other.x + other.y*other.y));
         if(d === 0) return 0;
-        return Math.acos(Math.min(Math.max(this.dotParts(x, y) / d, -1), 1));
+        return Math.acos(Math.min(Math.max(this.dot(other) / d, -1), 1));
     }
-    angle(other: Vec2): number { return this.angleParts(other.x, other.y); }
     strictEquals(other: Vec2): boolean {
         return this.x === other.x && this.y === other.y;
     }
 
-    // No-Allocation Operations
-    copyFrom(other: Vec2): Vec2 {
+    // Operations
+    fromVector(other: Vec2): this {
         this.x = other.x;
         this.y = other.y;
         return this;
     }
-    fromArray(arr: [number, number, ...number[]]): Vec2 {
+    fromArray(arr: [number, number, ...number[]]): this {
         this.x = arr[0];
         this.y = arr[1];
         return this;
     }
-    addPut(other: Vec2, out: Vec2): Vec2 {
-        out.x = this.x + other.x;
-        out.y = this.y + other.y;
-        return out;
+    fromObject(obj: {x: number, y: number}): this {
+        this.x = obj.x;
+        this.y = obj.y;
+        return this;
     }
-    subPut(other: Vec2, out: Vec2): Vec2 {
-        out.x = this.x - other.x;
-        out.y = this.y - other.y;
-        return out;
+    fromAdd(a: Vec2, b: Vec2): this {
+        this.x = a.x + b.x;
+        this.y = a.y + b.y;
+        return this;
     }
-    mulPut(other: Vec2, out: Vec2): Vec2 {
-        out.x = this.x * other.x;
-        out.y = this.y * other.y;
-        return out;
+    fromSub(a: Vec2, b: Vec2): this {
+        this.x = a.x - b.x;
+        this.y = a.y - b.y;
+        return this;
     }
-    divPut(other: Vec2, out: Vec2): Vec2 {
-        out.x = this.x / other.x;
-        out.y = this.y / other.y;
-        return out;
+    fromMul(a: Vec2, b: Vec2): this {
+        this.x = a.x * b.x;
+        this.y = a.y * b.y;
+        return this;
     }
-    normPut(out: Vec2): Vec2 {
+    fromDiv(a: Vec2, b: Vec2): this {
+        this.x = a.x / b.x;
+        this.y = a.y / b.y;
+        return this;
+    }
+    fromNorm(a: Vec2): this {
+        const len = a.length();
+        if(len === 0) return this.fromVector(a);
+        this.x = a.x / len;
+        this.y = a.y / len;
+        return this;
+    }
+    fromLerp(a: Vec2, b: Vec2, t: number): this {
+        this.x = a.x + (b.x - a.x) * t;
+        this.y = a.y + (b.y - a.y) * t;
+        return this;
+    }
+    add(other: Vec2): this {
+        this.x += other.x;
+        this.y += other.y;
+        return this;
+    }
+    sub(other: Vec2): this {
+        this.x -= other.x;
+        this.y -= other.y;
+        return this;
+    }
+    mul(other: Vec2): this {
+        this.x *= other.x;
+        this.y *= other.y;
+        return this;
+    }
+    div(other: Vec2): this {
+        this.x /= other.x;
+        this.y /= other.y;
+        return this;
+    }
+    negate(): this {
+        this.x = -this.x;
+        this.y = -this.y;
+        return this;
+    }
+    addScalar(v: number) {
+        this.x += v;
+        this.y += v;
+        return this;
+    }
+    mulScalar(v: number) {
+        this.x *= v;
+        this.y *= v;
+        return this;
+    }
+    addScaled(other: Vec2, v: number) {
+        this.x += other.x * v;
+        this.y += other.y * v;
+        return this;
+    }
+    norm(): this {
         const len = this.length();
-        if(len === 0) {
-            out.x = 0;
-            out.y = 0;
-        } else {
-            out.x = this.x / len;
-            out.y = this.y / len;
-        }
-        return out;
+        if(len === 0) return this;
+        this.x /= len;
+        this.y /= len;
+        return this;
     }
-    invertPut(out: Vec2): Vec2 {
-        out.x = -this.x;
-        out.y = -this.y;
-        return out;
+    rescale(length: number): this {
+        return this.norm().mulScalar(length);
     }
-    lerpPut(other: Vec2, t: number, out: Vec2): Vec2 {
-        out.x = this.x + (other.x - this.x) * t;
-        out.y = this.y + (other.y - this.y) * t;
-        return out;
+    look(other: Vec2): this {
+        return this.fromSub(other, this).norm();
     }
-    rescalePut(length: number, out: Vec2): Vec2 {
-        this.normPut(out);
-        out.x *= length;
-        out.y *= length;
-        return out;
+    map(callback: (v: number, i: number) => number): this {
+        this.x = callback(this.x, 0);
+        this.y = callback(this.y, 1);
+        return this;
     }
-    lookPut(other: Vec2, out: Vec2): Vec2 {
-        return other.subPut(this, out).normPut(out);
-    }
-    mapPut(callback: (v: number, i: number) => number, out: Vec2): Vec2 {
-        out.x = callback(this.x, 0);
-        out.y = callback(this.y, 1);
-        return out;
-    }
-    redotPut(other: Vec2, targetDot: number, out: Vec2): Vec2 {
+    redot(other: Vec2, targetDot: number): this {
         const d = other.lengthSq();
-        if(d === 0) return out.copyFrom(this);
+        if(d === 0) return this.fromVector(other);
         const t = (targetDot - this.dot(other)) / d;
-        out.x = this.x + other.x * t;
-        out.y = this.y + other.y * t;
-        return out;
+        this.x = this.x + other.x * t;
+        this.y = this.y + other.y * t;
+        return this;
     }
-    clampLengthPut(min: number, max: number, out: Vec2) {
-        const len = Math.min(Math.max(this.length(), min), max);
-        return this.rescalePut(len, out);
+    clampLength(min: number, max: number): this {
+        const len = this.length();
+        if(len < min) return this.rescale(min);
+        else if(len > max) return this.rescale(max);
+        return this;
     }
-    transformPut(m: Float32Array | number[], out: Vec2): Vec2 {
+    applyMatrix(m: Float32Array | number[]): this {
         const x = this.x;
         const y = this.y;
-        out.x = m[0]!*x + m[3]!*y + m[6]!;
-        out.y = m[1]!*x + m[4]!*y + m[7]!;
-        return out;
+        this.x = m[0]!*x + m[3]!*y + m[6]!;
+        this.y = m[1]!*x + m[4]!*y + m[7]!;
+        return this;
     }
-    applyProjectionPut(m: Float32Array | number[], out: Vec2): Vec2 {
+    applyProjection(m: Float32Array | number[]): this {
         const x = this.x;
         const y = this.y;
         const w = m[2]!*x + m[5]!*y + m[8]!;
-        out.x = (m[0]!*x + m[3]!*y + m[6]!) / w;
-        out.y = (m[1]!*x + m[4]!*y + m[7]!) / w;
-        return out;
+        this.x = (m[0]!*x + m[3]!*y + m[6]!) / w;
+        this.y = (m[1]!*x + m[4]!*y + m[7]!) / w;
+        return this;
     }
-    rotatePut(a: number, out: Vec2): Vec2 {
-        const s = Math.sin(a);
-        const c = Math.cos(a);
+    rotate(angle: number): this {
+        const s = Math.sin(angle);
+        const c = Math.cos(angle);
         const x = this.x;
         const y = this.y;
-        out.x = x * c - y * s;
-        out.y = x * s + y * c;
-        return out;
+        this.x = x * c - y * s;
+        this.y = x * s + y * c;
+        return this;
     }
-
-    addScalarPut(f: number, out: Vec2): Vec2 {
-        out.x = this.x + f;
-        out.y = this.y + f;
-        return out;
-    }
-    subScalarPut(f: number, out: Vec2): Vec2 {
-        out.x = this.x - f;
-        out.y = this.y - f;
-        return out;
-    }
-    rsubScalarPut(f: number, out: Vec2): Vec2 {
-        out.x = f - this.x;
-        out.y = f - this.y;
-        return out;
-    }
-    mulScalarPut(f: number, out: Vec2): Vec2 {
-        out.x = this.x * f;
-        out.y = this.y * f;
-        return out;
-    }
-    divScalarPut(f: number, out: Vec2): Vec2 {
-        out.x = this.x / f;
-        out.y = this.y / f;
-        return out;
-    }
-    rdivScalarPut(f: number, out: Vec2): Vec2 {
-        out.x = f / this.x;
-        out.y = f / this.y;
-        return out;
-    }
-
-    // Allocation Operations
-    clone(): Vec2 { return new Vec2(this.x, this.y); }
-    add(other: Vec2): Vec2 { return this.addPut(other, Vec2.zero()); }
-    sub(other: Vec2): Vec2 { return this.subPut(other, Vec2.zero()); }
-    mul(other: Vec2): Vec2 { return this.mulPut(other, Vec2.zero()); }
-    div(other: Vec2): Vec2 { return this.divPut(other, Vec2.zero()); }
-    norm(): Vec2 { return this.normPut(Vec2.zero()); }
-    invert(): Vec2 { return this.invertPut(Vec2.zero()); }
-    lerp(other: Vec2, t: number): Vec2 { return this.lerpPut(other, t, Vec2.zero()); }
-    rescale(length: number): Vec2 { return this.rescalePut(length, Vec2.zero()); }
-    look(other: Vec2): Vec2 { return this.lookPut(other, Vec2.zero()); }
-    map(callback: (v: number, i: number) => number): Vec2 { return this.mapPut(callback, Vec2.zero()); }
-    redot(other: Vec2, targetDot: number): Vec2 { return this.redotPut(other, targetDot, Vec2.zero()); }
-    clampLength(min: number, max: number): Vec2 { return this.clampLengthPut(min, max, Vec2.zero()); }
-    transform(m: number[]): Vec2 { return this.transformPut(m, Vec2.zero()); }
-    applyProjection(m: number[]): Vec2 { return this.applyProjectionPut(m, Vec2.zero()); }
-    rotate(a: number): Vec2 { return this.rotatePut(a, Vec2.zero()); }
-
-    addScalar(f: number): Vec2 { return this.addScalarPut(f, Vec2.zero()); }
-    subScalar(f: number): Vec2 { return this.subScalarPut(f, Vec2.zero()); }
-    rsubScalar(f: number): Vec2 { return this.rsubScalarPut(f, Vec2.zero()); }
-    mulScalar(f: number): Vec2 { return this.mulScalarPut(f, Vec2.zero()); }
-    divScalar(f: number): Vec2 { return this.divScalarPut(f, Vec2.zero()); }
-    rdivScalar(f: number): Vec2 { return this.rdivScalarPut(f, Vec2.zero()); }
 }

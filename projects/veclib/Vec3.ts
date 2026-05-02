@@ -26,14 +26,11 @@ export class Vec3 {
     }
 
     // Conversions
+    clone(): Vec3 {
+        return new Vec3(this.x, this.y, this.z);
+    }
     toArray(): [number, number, number] {
         return [this.x, this.y, this.z];
-    }
-    toArrayPut(arr: number[]): number[] {
-        arr[0] = this.x;
-        arr[1] = this.y;
-        arr[2] = this.z;
-        return arr;
     }
     toString(): string {
         return `<${this.x}, ${this.y}, ${this.z}>`;
@@ -41,22 +38,23 @@ export class Vec3 {
     toObject(): {x: number, y: number, z: number} {
         return {x:this.x, y:this.y, z:this.z};
     }
-    toObjectPut(obj: any): any {
-        obj.x = this.x;
-        obj.y = this.y;
-        obj.z = this.z;
-        return obj;
-    }
 
     // Calculations
-    lengthSq(): number { return this.x * this.x + this.y * this.y + this.z * this.z; }
-    length(): number { return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z); }
-    pitch(): number { return Math.asin(this.y); }
-    yaw(): number { return Math.atan2(-this.x, -this.z); }
-    isCloseParts(x: number, y: number, z: number, e = 1e-6) {
-        return Math.abs(this.x - x) < e && Math.abs(this.y - y) < e && Math.abs(this.z - z) < e;
+    lengthSq(): number {
+        return this.x * this.x + this.y * this.y + this.z * this.z;
     }
-    isClose(other: Vec3, e = 1e-6) { return this.isCloseParts(other.x, other.y, other.z, e); }
+    length(): number {
+        return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+    }
+    pitch(): number {
+        return Math.asin(this.y);
+    }
+    yaw(): number {
+        return Math.atan2(-this.x, -this.z);
+    }
+    isClose(other: Vec3, e = 1e-6) {
+        return Math.abs(this.x - other.x) < e && Math.abs(this.y - other.y) < e && Math.abs(this.z - other.z) < e;
+    }
     isZero(e = 1e-6) {
         return Math.abs(this.x) < e && Math.abs(this.y) < e && Math.abs(this.z) < e;
     }
@@ -66,30 +64,26 @@ export class Vec3 {
     isFinite() {
         return Number.isFinite(this.x) && Number.isFinite(this.y) && Number.isFinite(this.z);
     }
-    distSqParts(x: number, y: number, z: number): number {
-        const dx = this.x - x;
-        const dy = this.y - y;
-        const dz = this.z - z;
+    distSq(other: Vec3): number {
+        const dx = this.x - other.x;
+        const dy = this.y - other.y;
+        const dz = this.z - other.z;
         return dx*dx + dy*dy + dz*dz;
     }
-    distSq(other: Vec3): number { return this.distSqParts(other.x, other.y, other.z); }
-    distParts(x: number, y: number, z: number): number {
-        const dx = this.x - x;
-        const dy = this.y - y;
-        const dz = this.z - z;
+    dist(other: Vec3): number {
+        const dx = this.x - other.x;
+        const dy = this.y - other.y;
+        const dz = this.z - other.z;
         return Math.sqrt(dx*dx + dy*dy + dz*dz);
     }
-    dist(other: Vec3): number { return this.distParts(other.x, other.y, other.z); }
-    dotParts(x: number, y: number, z: number): number {
-        return this.x * x + this.y * y + this.z * z;
+    dot(other: Vec3): number {
+        return this.x * other.x + this.y * other.y + this.z * other.z;
     }
-    dot(other: Vec3): number { return this.dotParts(other.x, other.y, other.z); }
-    angleParts(x: number, y: number, z: number): number {
-        const d = Math.sqrt(this.lengthSq() * (x*x + y*y + z*z));
+    angle(other: Vec3): number {
+        const d = Math.sqrt(this.lengthSq() * (other.x*other.x + other.y*other.y + other.z*other.z));
         if(d === 0) return 0;
-        return Math.acos(Math.min(Math.max(this.dotParts(x, y, z) / d, -1), 1));
+        return Math.acos(Math.min(Math.max(this.dot(other) / d, -1), 1));
     }
-    angle(other: Vec3): number { return this.angleParts(other.x, other.y, other.z); }
     signedAngle(other: Vec3, normal: Vec3): number {
         const cx = this.y * other.z - this.z * other.y;
         const cy = this.z * other.x - this.x * other.z;
@@ -97,265 +91,228 @@ export class Vec3 {
         const crossLength = Math.sqrt(cx*cx + cy*cy + cz*cz);
         const dot = this.dot(other);
         const angle = Math.atan2(crossLength, dot);
-        return normal.dotParts(cx, cy, cz) < 0 ? -angle : angle;
+        const crossNormalDot = cx*normal.x + cy*normal.y + cz*normal.z;
+        return crossNormalDot < 0 ? -angle : angle;
     }
     strictEquals(other: Vec3): boolean {
         return this.x === other.x && this.y === other.y && this.z === other.z;
     }
 
-    // No-Allocation Operations
-    copyFrom(other: Vec3): Vec3 {
+    // Operations
+    fromVector(other: Vec3): this {
         this.x = other.x;
         this.y = other.y;
         this.z = other.z;
         return this;
     }
-    fromArray(arr: [number, number, number, ...number[]]): Vec3 {
+    fromArray(arr: [number, number, number, ...number[]]): this {
         this.x = arr[0];
         this.y = arr[1];
         this.z = arr[2];
         return this;
     }
-    addPut(other: Vec3, out: Vec3): Vec3 {
-        out.x = this.x + other.x;
-        out.y = this.y + other.y;
-        out.z = this.z + other.z;
-        return out;
+    fromObject(obj: {x: number, y: number, z: number}): this {
+        this.x = obj.x;
+        this.y = obj.y;
+        this.z = obj.z;
+        return this;
     }
-    subPut(other: Vec3, out: Vec3): Vec3 {
-        out.x = this.x - other.x;
-        out.y = this.y - other.y;
-        out.z = this.z - other.z;
-        return out;
+    fromAdd(a: Vec3, b: Vec3): this {
+        this.x = a.x + b.x;
+        this.y = a.y + b.y;
+        this.z = a.z + b.z;
+        return this;
     }
-    mulPut(other: Vec3, out: Vec3): Vec3 {
-        out.x = this.x * other.x;
-        out.y = this.y * other.y;
-        out.z = this.z * other.z;
-        return out;
+    fromSub(a: Vec3, b: Vec3): this {
+        this.x = a.x - b.x;
+        this.y = a.y - b.y;
+        this.z = a.z - b.z;
+        return this;
     }
-    divPut(other: Vec3, out: Vec3): Vec3 {
-        out.x = this.x / other.x;
-        out.y = this.y / other.y;
-        out.z = this.z / other.z;
-        return out;
+    fromMul(a: Vec3, b: Vec3): this {
+        this.x = a.x * b.x;
+        this.y = a.y * b.y;
+        this.z = a.z * b.z;
+        return this;
     }
-    crossPut(other: Vec3, out: Vec3): Vec3 {
-        const cx = this.y * other.z - this.z * other.y;
-        const cy = this.z * other.x - this.x * other.z;
-        const cz = this.x * other.y - this.y * other.x;
-        out.x = cx;
-        out.y = cy;
-        out.z = cz;
-        return out;
+    fromDiv(a: Vec3, b: Vec3): this {
+        this.x = a.x / b.x;
+        this.y = a.y / b.y;
+        this.z = a.z / b.z;
+        return this;
     }
-    normPut(out: Vec3): Vec3 {
+    fromCross(a: Vec3, b: Vec3): this {
+        const cx = a.y * b.z - a.z * b.y;
+        const cy = a.z * b.x - a.x * b.z;
+        const cz = a.x * b.y - a.y * b.x;
+        this.x = cx;
+        this.y = cy;
+        this.z = cz;
+        return this;
+    }
+    fromNorm(a: Vec3): this {
+        const len = a.length();
+        if(len === 0) return this.fromVector(a);
+        this.x = a.x / len;
+        this.y = a.y / len;
+        this.z = a.z / len;
+        return this;
+    }
+    fromLerp(a: Vec3, b: Vec3, t: number): this {
+        this.x = a.x + (b.x - a.x) * t;
+        this.y = a.y + (b.y - a.y) * t;
+        this.z = a.z + (b.z - a.z) * t;
+        return this;
+    }
+    add(other: Vec3): this {
+        this.x += other.x;
+        this.y += other.y;
+        this.z += other.z;
+        return this;
+    }
+    sub(other: Vec3): this {
+        this.x -= other.x;
+        this.y -= other.y;
+        this.z -= other.z;
+        return this;
+    }
+    mul(other: Vec3): this {
+        this.x *= other.x;
+        this.y *= other.y;
+        this.z *= other.z;
+        return this;
+    }
+    div(other: Vec3): this {
+        this.x /= other.x;
+        this.y /= other.y;
+        this.z /= other.z;
+        return this;
+    }
+    negate(): this {
+        this.x = -this.x;
+        this.y = -this.y;
+        this.z = -this.z;
+        return this;
+    }
+    addScalar(v: number) {
+        this.x += v;
+        this.y += v;
+        this.z += v;
+        return this;
+    }
+    mulScalar(v: number) {
+        this.x *= v;
+        this.y *= v;
+        this.z *= v;
+        return this;
+    }
+    addScaled(other: Vec3, v: number) {
+        this.x += other.x * v;
+        this.y += other.y * v;
+        this.z += other.z * v;
+        return this;
+    }
+    norm(): this {
         const len = this.length();
-        if(len === 0) {
-            out.x = 0;
-            out.y = 0;
-            out.z = 0;
-        } else {
-            out.x = this.x / len;
-            out.y = this.y / len;
-            out.z = this.z / len;
-        }
-        return out;
+        if(len === 0) return this;
+        this.x /= len;
+        this.y /= len;
+        this.z /= len;
+        return this;
     }
-    invertPut(out: Vec3): Vec3 {
-        out.x = -this.x;
-        out.y = -this.y;
-        out.z = -this.z;
-        return out;
+    rescale(length: number): this {
+        return this.norm().mulScalar(length);
     }
-    lerpPut(other: Vec3, t: number, out: Vec3): Vec3 {
-        out.x = this.x + (other.x - this.x) * t;
-        out.y = this.y + (other.y - this.y) * t;
-        out.z = this.z + (other.z - this.z) * t;
-        return out;
+    look(other: Vec3): this {
+        return this.fromSub(other, this).norm();
     }
-    rescalePut(length: number, out: Vec3): Vec3 {
-        this.normPut(out);
-        out.x *= length;
-        out.y *= length;
-        out.z *= length;
-        return out;
+    flatten(): this {
+        this.y = 0;
+        return this;
     }
-    lookPut(other: Vec3, out: Vec3): Vec3 {
-        return other.subPut(this, out).normPut(out);
+    map(callback: (v: number, i: number) => number): this {
+        this.x = callback(this.x, 0);
+        this.y = callback(this.y, 1);
+        this.z = callback(this.z, 2);
+        return this;
     }
-    flatPut(out: Vec3): Vec3 {
-        out.x = this.x;
-        out.y = 0;
-        out.z = this.z;
-        return out;
-    }
-    mapPut(callback: (v: number, i: number) => number, out: Vec3): Vec3 {
-        out.x = callback(this.x, 0);
-        out.y = callback(this.y, 1);
-        out.z = callback(this.z, 2);
-        return out;
-    }
-    redotPut(other: Vec3, targetDot: number, out: Vec3): Vec3 {
+    redot(other: Vec3, targetDot: number): this {
         const d = other.lengthSq();
-        if(d === 0) return out.copyFrom(this);
+        if(d === 0) return this.fromVector(other);
         const t = (targetDot - this.dot(other)) / d;
-        out.x = this.x + other.x * t;
-        out.y = this.y + other.y * t;
-        out.z = this.z + other.z * t;
-        return out;
+        this.x = this.x + other.x * t;
+        this.y = this.y + other.y * t;
+        this.z = this.z + other.z * t;
+        return this;
     }
-    clampLengthPut(min: number, max: number, out: Vec3) {
-        const len = Math.min(Math.max(this.length(), min), max);
-        return this.rescalePut(len, out);
+    clampLength(min: number, max: number): this {
+        const len = this.length();
+        if(len < min) return this.rescale(min);
+        else if(len > max) return this.rescale(max);
+        return this;
     }
-    transformPut(m: Float32Array | number[], out: Vec3): Vec3 {
+    applyMatrix(m: Float32Array): this {
         const x = this.x;
         const y = this.y;
         const z = this.z;
-        out.x = m[0]!*x + m[4]!*y + m[8]!*z + m[12]!;
-        out.y = m[1]!*x + m[5]!*y + m[9]!*z + m[13]!;
-        out.z = m[2]!*x + m[6]!*y + m[10]!*z + m[14]!;
-        return out;
+        this.x = m[0]!*x + m[4]!*y + m[8]!*z + m[12]!;
+        this.y = m[1]!*x + m[5]!*y + m[9]!*z + m[13]!;
+        this.z = m[2]!*x + m[6]!*y + m[10]!*z + m[14]!;
+        return this;
     }
-    applyProjectionPut(m: Float32Array | number[], out: Vec3): Vec3 {
+    applyProjection(m: Float32Array): this {
         const x = this.x;
         const y = this.y;
         const z = this.z;
         const w = m[3]! * x + m[7]! * y + m[11]! * z + m[15]!;
-        out.x = (m[0]!*x + m[4]!*y + m[8]!*z + m[12]!) / w;
-        out.y = (m[1]!*x + m[5]!*y + m[9]!*z + m[13]!) / w;
-        out.z = (m[2]!*x + m[6]!*y + m[10]!*z + m[14]!) / w;
-        return out;
+        this.x = (m[0]!*x + m[4]!*y + m[8]!*z + m[12]!) / w;
+        this.y = (m[1]!*x + m[5]!*y + m[9]!*z + m[13]!) / w;
+        this.z = (m[2]!*x + m[6]!*y + m[10]!*z + m[14]!) / w;
+        return this;
     }
-    rotateXPut(a: number, out: Vec3): Vec3 {
-        const s = Math.sin(a);
-        const c = Math.cos(a);
+    rotateX(angle: number): this {
+        const s = Math.sin(angle);
+        const c = Math.cos(angle);
         const y = this.y * c - this.z * s;
-        out.z = this.y * s + this.z * c;
-        out.y = y;
-        out.x = this.x;
-        return out;
+        this.z = this.y * s + this.z * c;
+        this.y = y;
+        this.x = this.x;
+        return this;
     }
-    rotateYPut(a: number, out: Vec3): Vec3 {
-        const s = Math.sin(a);
-        const c = Math.cos(a);
+    rotateY(angle: number): this {
+        const s = Math.sin(angle);
+        const c = Math.cos(angle);
         const z = this.z * c - this.x * s;
-        out.x = this.x * c + this.z * s;
-        out.z = z;
-        out.y = this.y;
-        return out;
+        this.x = this.x * c + this.z * s;
+        this.z = z;
+        this.y = this.y;
+        return this;
     }
-    rotateZPut(a: number, out: Vec3): Vec3 {
-        const s = Math.sin(a);
-        const c = Math.cos(a);
+    rotateZ(angle: number): this {
+        const s = Math.sin(angle);
+        const c = Math.cos(angle);
         const x = this.x * c - this.y * s;
-        out.y = this.x * s + this.y * c;
-        out.x = x;
-        out.z = this.z;
-        return out;
+        this.y = this.x * s + this.y * c;
+        this.x = x;
+        this.z = this.z;
+        return this;
     }
-    rotateAxisPut(a: number, axisUnit: Vec3, out: Vec3): Vec3 {
-        const s = Math.sin(a);
-        const c = Math.cos(a);
+    rotateAxis(axisUnit: Vec3, angle: number): this {
+        const s = Math.sin(angle);
+        const c = Math.cos(angle);
         const crossX = this.y * axisUnit.z - this.z * axisUnit.y;
         const crossY = this.z * axisUnit.x - this.x * axisUnit.z;
         const crossZ = this.x * axisUnit.y - this.y * axisUnit.x;
         const dot = axisUnit.dot(this);
-        out.x = this.x * c + crossX * s + axisUnit.x * dot * (1 - c);
-        out.y = this.y * c + crossY * s + axisUnit.y * dot * (1 - c);
-        out.z = this.z * c + crossZ * s + axisUnit.z * dot * (1 - c);
-        return out;
+        this.x = this.x * c + crossX * s + axisUnit.x * dot * (1 - c);
+        this.y = this.y * c + crossY * s + axisUnit.y * dot * (1 - c);
+        this.z = this.z * c + crossZ * s + axisUnit.z * dot * (1 - c);
+        return this;
     }
-    rotateXyzPut(rotation: Vec3, out: Vec3) {
-        return this.rotateXPut(rotation.x, out)
-            .rotateYPut(rotation.y, out)
-            .rotateZPut(rotation.z, out);
+    rotateXyz(rotation: Vec3): this {
+        return this.rotateX(rotation.x).rotateY(rotation.y).rotateZ(rotation.z);
     }
-    rotateXyzPartsPut(rx: number, ry: number, rz: number, out: Vec3): Vec3 {
-        return this.rotateXPut(rx, out)
-            .rotateYPut(ry, out)
-            .rotateZPut(rz, out);
+    rotateZyx(rotation: Vec3): this {
+        return this.rotateZ(rotation.z).rotateY(rotation.y).rotateX(rotation.x);
     }
-    rotateZyxPut(rotation: Vec3, out: Vec3) {
-        return this.rotateZPut(rotation.z, out)
-            .rotateYPut(rotation.y, out)
-            .rotateXPut(rotation.x, out);
-    }
-    rotateZyxPartsPut(rx: number, ry: number, rz: number, out: Vec3): Vec3 {
-        return this.rotateZPut(rz, out)
-            .rotateYPut(ry, out)
-            .rotateXPut(rx, out);
-    }
-
-    addScalarPut(f: number, out: Vec3): Vec3 {
-        out.x = this.x + f;
-        out.y = this.y + f;
-        out.z = this.z + f;
-        return out;
-    }
-    subScalarPut(f: number, out: Vec3): Vec3 {
-        out.x = this.x - f;
-        out.y = this.y - f;
-        out.z = this.z - f;
-        return out;
-    }
-    rsubScalarPut(f: number, out: Vec3): Vec3 {
-        out.x = f - this.x;
-        out.y = f - this.y;
-        out.z = f - this.z;
-        return out;
-    }
-    mulScalarPut(f: number, out: Vec3): Vec3 {
-        out.x = this.x * f;
-        out.y = this.y * f;
-        out.z = this.z * f;
-        return out;
-    }
-    divScalarPut(f: number, out: Vec3): Vec3 {
-        out.x = this.x / f;
-        out.y = this.y / f;
-        out.z = this.z / f;
-        return out;
-    }
-    rdivScalarPut(f: number, out: Vec3): Vec3 {
-        out.x = f / this.x;
-        out.y = f / this.y;
-        out.z = f / this.z;
-        return out;
-    }
-
-    // Allocation Operations
-    clone(): Vec3 { return new Vec3(this.x, this.y, this.z); }
-    add(other: Vec3): Vec3 { return this.addPut(other, Vec3.zero()); }
-    sub(other: Vec3): Vec3 { return this.subPut(other, Vec3.zero()); }
-    mul(other: Vec3): Vec3 { return this.mulPut(other, Vec3.zero()); }
-    div(other: Vec3): Vec3 { return this.divPut(other, Vec3.zero()); }
-    cross(other: Vec3): Vec3 { return this.crossPut(other, Vec3.zero()); }
-    norm(): Vec3 { return this.normPut(Vec3.zero()); }
-    invert(): Vec3 { return this.invertPut(Vec3.zero()); }
-    lerp(other: Vec3, t: number): Vec3 { return this.lerpPut(other, t, Vec3.zero()); }
-    rescale(length: number): Vec3 { return this.rescalePut(length, Vec3.zero()); }
-    look(other: Vec3): Vec3 { return this.lookPut(other, Vec3.zero()); }
-    flat(): Vec3 { return this.flatPut(Vec3.zero()); }
-    map(callback: (v: number, i: number) => number): Vec3 { return this.mapPut(callback, Vec3.zero()); }
-    redot(other: Vec3, targetDot: number): Vec3 { return this.redotPut(other, targetDot, Vec3.zero()); }
-    clampLength(min: number, max: number): Vec3 { return this.clampLengthPut(min, max, Vec3.zero()); }
-    transform(m: number[]): Vec3 { return this.transformPut(m, Vec3.zero()); }
-    applyProjection(m: number[]): Vec3 { return this.applyProjectionPut(m, Vec3.zero()); }
-    rotateX(a: number): Vec3 { return this.rotateXPut(a, Vec3.zero()); }
-    rotateY(a: number): Vec3 { return this.rotateYPut(a, Vec3.zero()); }
-    rotateZ(a: number): Vec3 { return this.rotateZPut(a, Vec3.zero()); }
-    rotateAxis(a: number, axisUnit: Vec3): Vec3 { return this.rotateAxisPut(a, axisUnit, Vec3.zero()); }
-    rotateXyz(rotation: Vec3): Vec3 { return this.rotateXyzPut(rotation, Vec3.zero()); }
-    rotateXyzParts(rx: number, ry: number, rz: number): Vec3 { return this.rotateXyzPartsPut(rx, ry, rz, Vec3.zero()); }
-    rotateZyx(rotation: Vec3): Vec3 { return this.rotateZyxPut(rotation, Vec3.zero()); }
-    rotateZyxParts(rx: number, ry: number, rz: number): Vec3 { return this.rotateZyxPartsPut(rx, ry, rz, Vec3.zero()); }
-
-    addScalar(f: number): Vec3 { return this.addScalarPut(f, Vec3.zero()); }
-    subScalar(f: number): Vec3 { return this.subScalarPut(f, Vec3.zero()); }
-    rsubScalar(f: number): Vec3 { return this.rsubScalarPut(f, Vec3.zero()); }
-    mulScalar(f: number): Vec3 { return this.mulScalarPut(f, Vec3.zero()); }
-    divScalar(f: number): Vec3 { return this.divScalarPut(f, Vec3.zero()); }
-    rdivScalar(f: number): Vec3 { return this.rdivScalarPut(f, Vec3.zero()); }
 }
