@@ -1,6 +1,6 @@
-import { Signal, ConnectionGroup, HtmlConnection } from "../../eventlib/index.js";
+import { ConnectionGroup, HtmlConnection, Signal } from "../utility/EventSignals";
 
-export class WindowResizeObserver {
+export default class WindowResizeObserver {
     resizeEvent: Signal<[w: number, h: number]> = new Signal({
         onConnect: conn => conn.fire(window.innerWidth, window.innerHeight),
     });
